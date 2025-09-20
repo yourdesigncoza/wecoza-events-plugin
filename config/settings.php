@@ -62,7 +62,7 @@ return array(
 
     // Dashboard settings
     'dashboard' => array(
-        'auto_refresh_interval' => 30, // seconds
+        'auto_refresh_interval' => 120, // seconds
         'items_per_page' => 20,
         'show_completed_tasks' => true,
         'completed_tasks_days' => 30,

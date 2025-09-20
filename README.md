@@ -72,7 +72,7 @@ Displays an overview of all tasks for specific classes.
 - `show_completed` - Show completed tasks ('true'/'false', default: 'false')
 - `limit` - Maximum number of items (default: '10')
 - `sort` - Sort order ('due_date', 'status', 'class', default: 'due_date')
-- `refresh_interval` - Auto-refresh in seconds (default: '30')
+- `refresh_interval` - Auto-refresh in seconds (default: '120')
 
 **Example:**
 ```

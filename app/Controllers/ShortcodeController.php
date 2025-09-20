@@ -91,7 +91,7 @@ class ShortcodeController
         wp_localize_script('wecoza-shortcodes', 'wecoza_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('wecoza_shortcode_nonce'),
-            'refresh_interval' => 30000 // 30 seconds
+            'refresh_interval' => 120000 // 120 seconds
         ));
     }
 
@@ -109,7 +109,7 @@ class ShortcodeController
             'show_completed' => 'false',
             'limit' => '10',
             'sort' => 'due_date',
-            'refresh_interval' => '30'
+            'refresh_interval' => '120'
         ), $atts, 'wecoza_class_status');
 
         $container_id = 'wecoza-class-status-' . uniqid();
@@ -144,7 +144,7 @@ class ShortcodeController
         ob_start();
 
         foreach ($tasks as $task) {
-            $status_class = $task->status === 'open' ? 'open-task' : 'informed';
+            $status_class = $task->task_status === 'open' ? 'open-task' : 'informed';
             $overdue_class = $this->is_task_overdue($task) ? 'overdue' : '';
             ?>
             <div class="wecoza-status-tile <?php echo esc_attr($status_class . ' ' . $overdue_class); ?>"
@@ -154,8 +154,8 @@ class ShortcodeController
                 <div class="wecoza-tile-header">
                     <span class="wecoza-task-icon"><?php echo $this->get_task_icon($task->task_type); ?></span>
                     <h4><?php echo esc_html($this->get_task_title($task->task_type)); ?></h4>
-                    <span class="wecoza-status-badge <?php echo esc_attr($task->status); ?>">
-                        <?php echo $task->status === 'open' ? '⬜ Open Task' : '✅ Informed'; ?>
+                    <span class="wecoza-status-badge <?php echo esc_attr($task->task_status); ?>">
+                        <?php echo $task->task_status === 'open' ? '⬜ Open Task' : '✅ Informed'; ?>
                     </span>
                 </div>
 
@@ -173,7 +173,7 @@ class ShortcodeController
                     <?php endif; ?>
                 </div>
 
-                <?php if ($task->status === 'open'): ?>
+                <?php if ($task->task_status === 'open'): ?>
                 <div class="wecoza-tile-actions">
                     <button class="btn btn-primary wecoza-complete-task"
                             data-class-id="<?php echo esc_attr($task->class_id); ?>"
@@ -439,18 +439,21 @@ class ShortcodeController
     {
         // This would return the appropriate URL for each task type
         // For now, return a placeholder
-        return admin_url('admin.php?page=wecoza-classes&action=edit&class_id=' . $task->class_id);
+        $class_id = is_array($task) ? $task['class_id'] : $task->class_id;
+        return admin_url('admin.php?page=wecoza-classes&action=edit&class_id=' . $class_id);
     }
 
     private function is_task_overdue($task)
     {
-        return $task->due_date && strtotime($task->due_date) < time();
+        $due_date = is_array($task) ? $task['due_date'] : $task->due_date;
+        return $due_date && strtotime($due_date) < time();
     }
 
     private function get_overdue_days($task)
     {
-        if (!$task->due_date) return 0;
-        return max(0, floor((time() - strtotime($task->due_date)) / DAY_IN_SECONDS));
+        $due_date = is_array($task) ? $task['due_date'] : $task->due_date;
+        if (!$due_date) return 0;
+        return max(0, floor((time() - strtotime($due_date)) / DAY_IN_SECONDS));
     }
 
     private function get_notification_count($user_id, $types)
@@ -639,7 +642,7 @@ class ShortcodeController
      */
     private function get_status_tile_content($task, $atts)
     {
-        $status_class = $task->status === 'open' ? 'open-task' : 'informed';
+        $status_class = $task->task_status === 'open' ? 'open-task' : 'informed';
         $overdue_class = $this->is_task_overdue($task) ? 'overdue' : '';
         $urgency_class = $this->get_task_urgency_class($task);
 
@@ -651,8 +654,8 @@ class ShortcodeController
 
             <div class="wecoza-tile-status-indicator">
                 <span class="wecoza-task-icon"><?php echo $this->get_task_icon($task->task_type); ?></span>
-                <span class="wecoza-status-badge <?php echo esc_attr($task->status); ?>">
-                    <?php echo $task->status === 'open' ? '⬜' : '✅'; ?>
+                <span class="wecoza-status-badge <?php echo esc_attr($task->task_status); ?>">
+                    <?php echo $task->task_status === 'open' ? '⬜' : '✅'; ?>
                 </span>
             </div>
 
@@ -675,7 +678,7 @@ class ShortcodeController
 
                 <p class="wecoza-tile-description"><?php echo esc_html($this->get_task_description($task->task_type)); ?></p>
 
-                <?php if ($task->status === 'informed'): ?>
+                <?php if ($task->task_status === 'informed'): ?>
                     <div class="wecoza-completion-info">
                         <span class="wecoza-completed-label">✅ Completed</span>
                         <?php if ($task->completed_at): ?>
@@ -687,7 +690,7 @@ class ShortcodeController
                 <?php endif; ?>
             </div>
 
-            <?php if ($atts['show_actions'] === 'true' && $task->status === 'open'): ?>
+            <?php if ($atts['show_actions'] === 'true' && $task->task_status === 'open'): ?>
                 <div class="wecoza-tile-actions">
                     <button class="btn btn-primary btn-sm wecoza-complete-task"
                             data-class-id="<?php echo esc_attr($task->class_id); ?>"
@@ -701,7 +704,7 @@ class ShortcodeController
                 </div>
             <?php endif; ?>
 
-            <?php if ($this->is_task_overdue($task) && $task->status === 'open'): ?>
+            <?php if ($this->is_task_overdue($task) && $task->task_status === 'open'): ?>
                 <div class="wecoza-urgency-banner">
                     <span class="wecoza-urgency-text">⚠️ Urgent: This task is overdue!</span>
                 </div>
@@ -728,7 +731,7 @@ class ShortcodeController
      */
     private function get_task_urgency_class($task)
     {
-        if (!$task->due_date || $task->status !== 'open') {
+        if (!$task->due_date || $task->task_status !== 'open') {
             return '';
         }
 

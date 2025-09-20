@@ -116,7 +116,7 @@ class PostgreSQLDatabaseService
                 $this->connection_settings['password'],
                 array(
                     \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-                    \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+                    \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_OBJ,
                     \PDO::ATTR_EMULATE_PREPARES => false,
                     \PDO::ATTR_TIMEOUT => 30
                 )
@@ -251,7 +251,7 @@ class PostgreSQLDatabaseService
                 return false;
             }
 
-            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            return $stmt->fetchAll(\PDO::FETCH_OBJ);
         } catch (\PDOException $e) {
             $this->log_error('Database get_results failed', array(
                 'message' => $e->getMessage(),
@@ -273,7 +273,7 @@ class PostgreSQLDatabaseService
                 return false;
             }
 
-            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $result = $stmt->fetch(\PDO::FETCH_OBJ);
             return $result === false ? null : $result;
         } catch (\PDOException $e) {
             $this->log_error('Database get_row failed', array(

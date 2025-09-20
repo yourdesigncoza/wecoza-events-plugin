@@ -694,7 +694,7 @@ The WECOZA Notifications System uses WordPress shortcodes to provide maximum fle
     show_completed="false"            // Show completed tasks
     limit="10"                        // Maximum number of items
     sort="due_date"                   // due_date|priority|status
-    refresh_interval="30"             // Auto-refresh in seconds
+    refresh_interval="120"             // Auto-refresh in seconds
 ]
 ```
 
