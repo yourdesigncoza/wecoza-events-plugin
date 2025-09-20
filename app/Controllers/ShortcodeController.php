@@ -439,19 +439,31 @@ class ShortcodeController
     {
         // This would return the appropriate URL for each task type
         // For now, return a placeholder
-        $class_id = is_array($task) ? $task['class_id'] : $task->class_id;
+        if (is_array($task)) {
+            $class_id = isset($task['class_id']) ? $task['class_id'] : 0;
+        } else {
+            $class_id = isset($task->class_id) ? $task->class_id : 0;
+        }
         return admin_url('admin.php?page=wecoza-classes&action=edit&class_id=' . $class_id);
     }
 
     private function is_task_overdue($task)
     {
-        $due_date = is_array($task) ? $task['due_date'] : $task->due_date;
+        if (is_array($task)) {
+            $due_date = isset($task['due_date']) ? $task['due_date'] : null;
+        } else {
+            $due_date = isset($task->due_date) ? $task->due_date : null;
+        }
         return $due_date && strtotime($due_date) < time();
     }
 
     private function get_overdue_days($task)
     {
-        $due_date = is_array($task) ? $task['due_date'] : $task->due_date;
+        if (is_array($task)) {
+            $due_date = isset($task['due_date']) ? $task['due_date'] : null;
+        } else {
+            $due_date = isset($task->due_date) ? $task->due_date : null;
+        }
         if (!$due_date) return 0;
         return max(0, floor((time() - strtotime($due_date)) / DAY_IN_SECONDS));
     }

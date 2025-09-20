@@ -10,7 +10,7 @@ class TemplateController
     public function __construct()
     {
         $this->template_service = new TemplateService();
-        $this->db_service = new DatabaseService();
+        $this->db_service = PostgreSQLDatabaseService::get_instance();
     }
 
     public function init()

@@ -99,6 +99,14 @@ class SupervisorController
     }
 
     /**
+     * Alias for admin_page - for backward compatibility
+     */
+    public function render_page()
+    {
+        $this->admin_page();
+    }
+
+    /**
      * Render supervisors list
      */
     private function render_supervisors_list()
