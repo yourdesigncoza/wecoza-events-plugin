@@ -20,7 +20,7 @@ class CronService
 
     public function __construct()
     {
-        $this->db_service = PostgreSQLDatabaseService::getInstance();
+        $this->db_service = PostgreSQLDatabaseService::get_instance();
         $this->email_service = new EmailService();
     }
 

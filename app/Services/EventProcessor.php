@@ -43,7 +43,7 @@ class EventProcessor
      */
     public function __construct()
     {
-        $this->db = PostgreSQLDatabaseService::getInstance();
+        $this->db = PostgreSQLDatabaseService::get_instance();
         $this->email_service = new EmailService();
         $this->load_configurations();
     }

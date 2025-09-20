@@ -26,7 +26,7 @@ psql -U your_user -d your_db -f schema/postgresql_events_schema.sql
 # Test PostgreSQL connection
 php -r "require_once 'app/Services/PostgreSQLDatabaseService.php';
         use WecozaNotifications\PostgreSQLDatabaseService;
-        \$db = PostgreSQLDatabaseService::getInstance();
+        \$db = PostgreSQLDatabaseService::get_instance();
         var_dump(\$db->test_connection());"
 ```
 

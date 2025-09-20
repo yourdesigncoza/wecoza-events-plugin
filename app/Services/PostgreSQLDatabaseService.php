@@ -71,9 +71,7 @@ class PostgreSQLDatabaseService
     public function __construct()
     {
         $this->load_connection_settings();
-        $this->connect();
-        $this->setup_tables();
-        $this->check_connection();
+        // Don't connect immediately - use lazy connection
     }
 
     /**
@@ -133,8 +131,24 @@ class PostgreSQLDatabaseService
                 'port' => $this->connection_settings['port'],
                 'dbname' => $this->connection_settings['dbname']
             ));
-            throw new \Exception('Database connection failed: ' . $e->getMessage());
+            $this->pdo = null;
+            return false;
         }
+        return true;
+    }
+
+    /**
+     * Ensure database connection exists
+     */
+    private function ensure_connection()
+    {
+        if ($this->pdo === null) {
+            if (!$this->connect()) {
+                return false;
+            }
+            $this->setup_tables();
+        }
+        return true;
     }
 
     /**
@@ -160,13 +174,19 @@ class PostgreSQLDatabaseService
      */
     private function check_connection()
     {
+        if ($this->pdo === null) {
+            return false;
+        }
+
         try {
             $this->pdo->query('SELECT 1');
+            return true;
         } catch (\PDOException $e) {
             $this->log_error('Database connection check failed', array(
                 'error' => $e->getMessage()
             ));
-            $this->reconnect();
+            $this->pdo = null;
+            return false;
         }
     }
 
@@ -175,13 +195,8 @@ class PostgreSQLDatabaseService
      */
     private function reconnect()
     {
-        try {
-            $this->connect();
-        } catch (\Exception $e) {
-            $this->log_error('Database reconnection failed', array(
-                'error' => $e->getMessage()
-            ));
-        }
+        $this->pdo = null;
+        return $this->connect();
     }
 
     /**
@@ -197,6 +212,10 @@ class PostgreSQLDatabaseService
      */
     public function query($sql, $params = array())
     {
+        if (!$this->ensure_connection()) {
+            return false;
+        }
+
         try {
             $stmt = $this->pdo->prepare($sql);
             $result = $stmt->execute($params);

@@ -37,7 +37,7 @@ class AuditService
 
     public function __construct()
     {
-        $this->db_service = PostgreSQLDatabaseService::getInstance();
+        $this->db_service = PostgreSQLDatabaseService::get_instance();
         $this->init_hooks();
     }
 

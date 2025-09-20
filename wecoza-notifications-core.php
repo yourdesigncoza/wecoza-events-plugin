@@ -76,8 +76,8 @@ final class WecozaNotificationsCore
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
         register_uninstall_hook(__FILE__, array('WecozaNotificationsCore', 'uninstall'));
 
-        add_action('plugins_loaded', array($this, 'init'));
         add_action('init', array($this, 'load_textdomain'));
+        add_action('init', array($this, 'init'), 20);
     }
 
     /**

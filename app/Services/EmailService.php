@@ -35,7 +35,7 @@ class EmailService
      */
     public function __construct()
     {
-        $this->db = PostgreSQLDatabaseService::getInstance();
+        $this->db = PostgreSQLDatabaseService::get_instance();
         $this->template_service = new TemplateService();
         $this->load_settings();
     }
@@ -53,6 +53,13 @@ class EmailService
      */
     public function init_action_scheduler()
     {
+        // Check if Action Scheduler is available
+        if (!function_exists('as_next_scheduled_action')) {
+            // Fallback to WordPress cron if Action Scheduler is not available
+            $this->init_wp_cron_fallback();
+            return;
+        }
+
         // Register our action hook
         add_action('wecoza_process_email_queue', array($this, 'process_queue_action_scheduler'));
 
@@ -66,6 +73,37 @@ class EmailService
                 'wecoza-notifications'
             );
         }
+    }
+
+    /**
+     * Fallback to WordPress cron when Action Scheduler is not available
+     */
+    private function init_wp_cron_fallback()
+    {
+        // Register our action hook
+        add_action('wecoza_process_email_queue', array($this, 'process_queue_action_scheduler'));
+
+        // Schedule recurring email queue processing using WordPress cron
+        if (!wp_next_scheduled('wecoza_process_email_queue')) {
+            wp_schedule_event(time(), 'five_minutes', 'wecoza_process_email_queue');
+        }
+
+        // Add custom cron interval for 5 minutes if it doesn't exist
+        add_filter('cron_schedules', array($this, 'add_cron_intervals'));
+    }
+
+    /**
+     * Add custom cron intervals
+     */
+    public function add_cron_intervals($schedules)
+    {
+        if (!isset($schedules['five_minutes'])) {
+            $schedules['five_minutes'] = array(
+                'interval' => 300, // 5 minutes in seconds
+                'display' => 'Every Five Minutes'
+            );
+        }
+        return $schedules;
     }
 
     /**
@@ -83,12 +121,22 @@ class EmailService
     {
         $when = time() + $delay;
 
-        as_schedule_single_action(
-            $when,
-            'wecoza_send_single_email',
-            array('notification_id' => $notification_id),
-            'wecoza-notifications'
-        );
+        if (function_exists('as_schedule_single_action')) {
+            // Use Action Scheduler if available
+            as_schedule_single_action(
+                $when,
+                'wecoza_send_single_email',
+                array('notification_id' => $notification_id),
+                'wecoza-notifications'
+            );
+        } else {
+            // Fallback to WordPress cron for single events
+            wp_schedule_single_event(
+                $when,
+                'wecoza_send_single_email',
+                array('notification_id' => $notification_id)
+            );
+        }
     }
 
     /**
