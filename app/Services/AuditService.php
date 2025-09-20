@@ -54,7 +54,6 @@ class AuditService
 
     public function log($level, $action, $message, $context = array(), $user_id = null)
     {
-        global $wpdb;
 
         // Validate and sanitize inputs
         $level = SecurityService::sanitize_text($level);
@@ -83,11 +82,7 @@ class AuditService
             'created_at' => current_time('mysql')
         );
 
-        $result = $wpdb->insert(
-            $wpdb->prefix . 'wecoza_audit_log',
-            $log_data,
-            array('%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s')
-        );
+        $result = $this->db_service->insert('audit_log', $log_data);
 
         if ($level === self::LOG_LEVEL_CRITICAL || $level === self::LOG_LEVEL_ERROR) {
             $this->trigger_alert($level, $action, $message, $context);
@@ -367,50 +362,47 @@ class AuditService
         return $wpdb->get_results($wpdb->prepare($query, ...$params));
     }
 
-    public function get_audit_stats($period = '7 days')
+    public function get_audit_stats($period = '30 days')
     {
-        global $wpdb;
-
         $stats = array();
 
-        $date_condition = $wpdb->prepare("created_at >= DATE_SUB(NOW(), INTERVAL %s)", $period);
+        // PostgreSQL interval syntax
+        $interval = $period;
 
-        $stats['total_logs'] = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}wecoza_audit_log WHERE {$date_condition}"
+        $stats['total_logs'] = $this->db_service->get_var(
+            "SELECT COUNT(*) FROM {$this->db_service->get_table('audit_log')}
+             WHERE created_at >= NOW() - INTERVAL '$interval'"
         );
 
-        $stats['by_level'] = $wpdb->get_results(
+        $stats['by_level'] = $this->db_service->get_results(
             "SELECT level, COUNT(*) as count
-             FROM {$wpdb->prefix}wecoza_audit_log
-             WHERE {$date_condition}
+             FROM {$this->db_service->get_table('audit_log')}
+             WHERE created_at >= NOW() - INTERVAL '$interval'
              GROUP BY level
-             ORDER BY count DESC",
-            ARRAY_A
+             ORDER BY count DESC"
         );
 
-        $stats['by_action'] = $wpdb->get_results(
+        $stats['by_action'] = $this->db_service->get_results(
             "SELECT action, COUNT(*) as count
-             FROM {$wpdb->prefix}wecoza_audit_log
-             WHERE {$date_condition}
+             FROM {$this->db_service->get_table('audit_log')}
+             WHERE created_at >= NOW() - INTERVAL '$interval'
              GROUP BY action
              ORDER BY count DESC
-             LIMIT 10",
-            ARRAY_A
+             LIMIT 10"
         );
 
-        $stats['error_rate'] = $wpdb->get_var(
-            "SELECT ROUND((COUNT(CASE WHEN level IN ('error', 'critical') THEN 1 END) / COUNT(*)) * 100, 2)
-             FROM {$wpdb->prefix}wecoza_audit_log
-             WHERE {$date_condition}"
+        $stats['error_rate'] = $this->db_service->get_var(
+            "SELECT ROUND((COUNT(CASE WHEN level IN ('error', 'critical') THEN 1 END)::numeric / COUNT(*)) * 100, 2)
+             FROM {$this->db_service->get_table('audit_log')}
+             WHERE created_at >= NOW() - INTERVAL '$interval'"
         );
 
-        $stats['daily_counts'] = $wpdb->get_results(
+        $stats['daily_counts'] = $this->db_service->get_results(
             "SELECT DATE(created_at) as date, COUNT(*) as count
-             FROM {$wpdb->prefix}wecoza_audit_log
-             WHERE {$date_condition}
+             FROM {$this->db_service->get_table('audit_log')}
+             WHERE created_at >= NOW() - INTERVAL '$interval'
              GROUP BY DATE(created_at)
-             ORDER BY date ASC",
-            ARRAY_A
+             ORDER BY date ASC"
         );
 
         return $stats;
@@ -661,16 +653,14 @@ class AuditService
 
     private function check_error_rate()
     {
-        global $wpdb;
-
-        $total_logs = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}wecoza_audit_log
-             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)"
+        $total_logs = $this->db_service->get_var(
+            "SELECT COUNT(*) FROM {$this->db_service->get_table('audit_log')}
+             WHERE created_at >= NOW() - INTERVAL '1 hour'"
         );
 
-        $error_logs = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}wecoza_audit_log
-             WHERE level IN ('error', 'critical') AND created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)"
+        $error_logs = $this->db_service->get_var(
+            "SELECT COUNT(*) FROM {$this->db_service->get_table('audit_log')}
+             WHERE level IN ('error', 'critical') AND created_at >= NOW() - INTERVAL '1 hour'"
         );
 
         $error_rate = $total_logs > 0 ? ($error_logs / $total_logs) * 100 : 0;
