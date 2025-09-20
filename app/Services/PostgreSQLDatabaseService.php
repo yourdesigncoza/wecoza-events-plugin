@@ -71,6 +71,7 @@ class PostgreSQLDatabaseService
     public function __construct()
     {
         $this->load_connection_settings();
+        $this->setup_tables();
         // Don't connect immediately - use lazy connection
     }
 
@@ -146,7 +147,6 @@ class PostgreSQLDatabaseService
             if (!$this->connect()) {
                 return false;
             }
-            $this->setup_tables();
         }
         return true;
     }

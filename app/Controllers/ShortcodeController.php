@@ -25,8 +25,9 @@ class ShortcodeController
      */
     public function __construct()
     {
-        $this->db = new DatabaseService();
+        $this->db = PostgreSQLDatabaseService::get_instance();
         $this->init_hooks();
+        $this->register_shortcodes();
     }
 
     /**
@@ -34,7 +35,6 @@ class ShortcodeController
      */
     private function init_hooks()
     {
-        add_action('init', array($this, 'register_shortcodes'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_frontend_assets'));
 
         // AJAX hooks for shortcode updates
@@ -334,22 +334,25 @@ class ShortcodeController
         $sql = "SELECT * FROM {$this->db->get_table('dashboard_status')} WHERE 1=1";
         $params = array();
 
+        $param_count = 1;
+
         if (!empty($atts['class_id'])) {
-            $sql .= " AND class_id = %d";
+            $sql .= " AND class_id = $" . $param_count++;
             $params[] = $atts['class_id'];
         }
 
         if ($atts['status'] !== 'all') {
-            $sql .= " AND status = %s";
+            $sql .= " AND task_status = $" . $param_count++;
             $params[] = $atts['status'];
         }
 
         if ($atts['show_completed'] === 'false') {
-            $sql .= " AND status = 'open'";
+            $sql .= " AND task_status = $" . $param_count++;
+            $params[] = 'open';
         }
 
         $sql .= " ORDER BY " . ($atts['sort'] === 'due_date' ? 'due_date ASC' : 'created_at DESC');
-        $sql .= " LIMIT %d";
+        $sql .= " LIMIT $" . $param_count++;
         $params[] = intval($atts['limit']);
 
         return $this->db->get_results($sql, $params);
@@ -358,7 +361,7 @@ class ShortcodeController
     private function get_user_pending_tasks($user_id, $atts)
     {
         $sql = "SELECT * FROM {$this->db->get_table('dashboard_status')}
-                WHERE responsible_user_id = %d AND status = 'open'";
+                WHERE responsible_user_id = $1 AND task_status = 'open'";
         $params = array($user_id);
 
         if ($atts['show_overdue_first'] === 'true') {
@@ -367,7 +370,7 @@ class ShortcodeController
             $sql .= " ORDER BY due_date ASC";
         }
 
-        $sql .= " LIMIT %d";
+        $sql .= " LIMIT $2";
         $params[] = intval($atts['limit']);
 
         return $this->db->get_results($sql, $params);
@@ -462,7 +465,7 @@ class ShortcodeController
         $total_tasks = 5; // load_learners, agent_order, training_schedule, material_delivery, agent_paperwork
 
         $sql = "SELECT COUNT(*) FROM {$this->db->get_table('dashboard_status')}
-                WHERE class_id = %d AND status = 'informed'";
+                WHERE class_id = $1 AND task_status = 'informed'";
 
         $completed = $this->db->get_var($sql, array($class_id)) ?: 0;
         $percentage = $total_tasks > 0 ? round(($completed / $total_tasks) * 100) : 0;
@@ -487,8 +490,8 @@ class ShortcodeController
 
         // Update task status
         $sql = "UPDATE {$this->db->get_table('dashboard_status')}
-                SET status = 'informed', completed_at = %s
-                WHERE class_id = %d AND task_type = %s";
+                SET task_status = 'informed', completed_at = $1
+                WHERE class_id = $2 AND task_type = $3";
 
         $result = $this->db->query($sql, array(
             current_time('mysql'),
@@ -715,7 +718,7 @@ class ShortcodeController
     private function get_single_task_status($class_id, $task_type)
     {
         $sql = "SELECT * FROM {$this->db->get_table('dashboard_status')}
-                WHERE class_id = %d AND task_type = %s LIMIT 1";
+                WHERE class_id = $1 AND task_type = $2 LIMIT 1";
 
         return $this->db->get_row($sql, array($class_id, $task_type));
     }

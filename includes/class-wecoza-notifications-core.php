@@ -75,8 +75,6 @@ class Core
         // Custom cron intervals
         add_filter('cron_schedules', array($this, 'add_cron_intervals'));
 
-        // Shortcode registration
-        add_action('init', array($this, 'register_shortcodes'));
     }
 
     /**
@@ -416,15 +414,6 @@ class Core
         );
 
         return $schedules;
-    }
-
-    /**
-     * Register shortcodes
-     */
-    public function register_shortcodes()
-    {
-        $shortcode_controller = new ShortcodeController();
-        $shortcode_controller->register_shortcodes();
     }
 
     /**
