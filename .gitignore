@@ -1,0 +1,47 @@
+# Development
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.project
+.idea/
+*.sublime-project
+*.sublime-workspace
+.vscode/
+*.code-workspace
+node_modules/
+vendor/
+composer.lock
+package-lock.json
+
+# IDE & Editor files
+.claude/
+*.bak
+*.tmp
+
+# Testing
+tests/coverage/
+phpunit.xml
+.phpunit.result.cache
+
+# Build
+/build/
+/dist/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Database dumps
+*.sql
+!schema/*.sql
+
+# Debug and log files
+*.log
+debug.log
+error_log
+
+# WordPress cache
+cache/
