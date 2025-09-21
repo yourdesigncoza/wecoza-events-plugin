@@ -208,14 +208,29 @@ class EventProcessor
             return false;
         }
 
+        $metadata = isset($event_data['metadata']) && is_array($event_data['metadata'])
+            ? $event_data['metadata']
+            : array();
+
+        $responsible_user_id = null;
+        if (isset($metadata['responsible_user_id'])) {
+            $responsible_user_id = SecurityService::sanitize_int($metadata['responsible_user_id']);
+        } elseif (isset($event_data['actor_id'])) {
+            $responsible_user_id = SecurityService::sanitize_int($event_data['actor_id']);
+        }
+
         $status_data = array(
             'class_id' => $event_data['class_id'],
             'task_type' => $dashboard_config['task_type'],
             'task_status' => $dashboard_config['status'],
-            'responsible_user_id' => isset($event_data['actor_id']) ? $event_data['actor_id'] : null,
+            'responsible_user_id' => $responsible_user_id,
             'completed_at' => ($dashboard_config['status'] === 'completed') ? current_time('mysql') : null,
-            'completion_data' => isset($event_data['metadata']) ? json_encode($event_data['metadata']) : null
+            'completion_data' => !empty($metadata) ? json_encode($metadata) : null
         );
+
+        if ($dashboard_config['status'] !== 'completed') {
+            $status_data['completed_at'] = null;
+        }
 
         // Check if status record exists
         $class_id = SecurityService::sanitize_int($event_data['class_id']);

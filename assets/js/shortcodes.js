@@ -27,7 +27,6 @@
             this.bindEvents();
             this.startPolling();
 
-            console.log('WECOZA Shortcode Manager initialized');
         },
 
         /**
@@ -53,7 +52,6 @@
 
                 self.instances.set(instance.id, instance);
 
-                console.log('Registered shortcode:', shortcodeType, instance.id);
             });
         },
 
@@ -74,6 +72,12 @@
                 e.preventDefault();
                 var containerId = $(this).closest('.wecoza-shortcode-container').attr('id');
                 self.refreshShortcode(containerId);
+            });
+
+            // Manual dashboard sync buttons
+            $(document).on('click', '.wecoza-run-dashboard-sync', function(e) {
+                e.preventDefault();
+                self.handleManualSync($(this));
             });
 
             // Window focus event to refresh data
@@ -131,7 +135,8 @@
                     action: 'wecoza_update_shortcode',
                     nonce: wecoza_ajax.nonce,
                     shortcode_type: instance.type,
-                    params: JSON.stringify(instance.params)
+                    params: JSON.stringify(instance.params),
+                    container_id: containerId
                 },
                 success: function(response) {
                     if (response.success && response.data.html) {
@@ -145,7 +150,6 @@
                             id: containerId
                         });
 
-                        console.log('Refreshed shortcode:', instance.type, containerId);
                     }
                 },
                 error: function(xhr, status, error) {
@@ -221,6 +225,70 @@
                 error: function() {
                     self.showMessage('Error: Failed to complete task', 'error');
                     $button.prop('disabled', false).text('Mark Complete');
+                }
+            });
+        },
+
+        /**
+         * Handle manual dashboard sync action
+         */
+        handleManualSync: function($button) {
+            var self = this;
+
+            if ($button.hasClass('is-loading')) {
+                return;
+            }
+
+            var $status = $button.siblings('.wecoza-sync-status');
+            var defaultLabel = $button.data('label') || $button.text();
+            var loadingLabel = $button.data('loading-label') || 'Syncing...';
+
+            $button.data('default-label', defaultLabel);
+
+            $button.addClass('is-loading').prop('disabled', true).text(loadingLabel);
+            if ($status.length) {
+                $status.text('Sync in progress...');
+            }
+
+            $.ajax({
+                url: wecoza_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'wecoza_run_dashboard_sync',
+                    nonce: wecoza_ajax.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var successMessage = (response.data && response.data.message) ? response.data.message : 'Dashboard synced successfully.';
+                        self.showMessage(successMessage, 'success');
+                        if ($status.length) {
+                            $status.text('Last synced just now');
+                        }
+
+                        setTimeout(function() {
+                            self.refreshAllShortcodes();
+                        }, 500);
+                    } else {
+                        var errorMessage = (response.data && response.data.message) ? response.data.message : 'Failed to sync dashboard.';
+                        self.showMessage(errorMessage, 'error');
+                        if ($status.length) {
+                            $status.text(errorMessage);
+                        }
+                    }
+                },
+                error: function(xhr) {
+                    var message = 'Failed to sync dashboard.';
+                    if (xhr && xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                        message = xhr.responseJSON.data.message;
+                    }
+                    self.showMessage(message, 'error');
+                    if ($status.length) {
+                        $status.text(message);
+                    }
+                },
+                complete: function() {
+                    var finalLabel = $button.data('default-label') || defaultLabel;
+                    $button.removeClass('is-loading').prop('disabled', false).text(finalLabel);
                 }
             });
         },

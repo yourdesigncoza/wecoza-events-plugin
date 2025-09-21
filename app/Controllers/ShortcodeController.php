@@ -21,11 +21,17 @@ class ShortcodeController
     private $db;
 
     /**
+     * Dashboard sync service
+     */
+    private $dashboard_sync_service;
+
+    /**
      * Constructor
      */
     public function __construct()
     {
         $this->db = PostgreSQLDatabaseService::get_instance();
+        $this->dashboard_sync_service = new DashboardStatusSyncService();
         $this->init_hooks();
         $this->register_shortcodes();
     }
@@ -42,6 +48,7 @@ class ShortcodeController
         add_action('wp_ajax_nopriv_wecoza_update_shortcode', array($this, 'ajax_update_shortcode'));
         add_action('wp_ajax_wecoza_complete_task', array($this, 'ajax_complete_task'));
         add_action('wp_ajax_wecoza_get_class_status', array($this, 'ajax_get_class_status'));
+        add_action('wp_ajax_wecoza_run_dashboard_sync', array($this, 'ajax_run_dashboard_sync'));
     }
 
     /**
@@ -80,11 +87,14 @@ class ShortcodeController
             return;
         }
 
+        $script_path = WECOZA_NOTIFICATIONS_PLUGIN_DIR . 'assets/js/shortcodes.js';
+        $script_version = file_exists($script_path) ? filemtime($script_path) : time();
+
         wp_enqueue_script(
             'wecoza-shortcodes',
             WECOZA_NOTIFICATIONS_PLUGIN_URL . 'assets/js/shortcodes.js',
             array('jquery'),
-            '1.0.0',
+            $script_version,
             true
         );
 
@@ -114,6 +124,8 @@ class ShortcodeController
 
         $container_id = 'wecoza-class-status-' . uniqid();
 
+        $content = $this->get_class_status_inner($atts, $container_id);
+
         ob_start();
         ?>
         <div id="<?php echo esc_attr($container_id); ?>"
@@ -122,10 +134,24 @@ class ShortcodeController
              data-wecoza-params="<?php echo esc_attr(json_encode($atts)); ?>"
              data-refresh-interval="<?php echo esc_attr($atts['refresh_interval']); ?>">
 
-            <?php echo $this->get_class_status_content($atts); ?>
+            <?php echo $content; ?>
 
         </div>
         <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * Build inner markup for class status shortcode (buttons + tiles)
+     */
+    private function get_class_status_inner($atts, $container_id)
+    {
+        ob_start();
+
+        echo $this->render_manual_sync_button($container_id, 'top');
+        echo $this->get_class_status_content($atts);
+        echo $this->render_manual_sync_button($container_id, 'bottom');
+
         return ob_get_clean();
     }
 
@@ -531,18 +557,40 @@ class ShortcodeController
         wp_send_json_success($tasks);
     }
 
+    public function ajax_run_dashboard_sync()
+    {
+        check_ajax_referer('wecoza_shortcode_nonce', 'nonce');
+
+        if (!is_user_logged_in() || !SecurityService::current_user_can(SecurityService::CAP_MANAGE_NOTIFICATIONS)) {
+            wp_send_json_error(array('message' => __('You do not have permission to run the sync.', 'wecoza-notifications')), 403);
+            return;
+        }
+
+        try {
+            $this->dashboard_sync_service->sync();
+            wp_send_json_success(array('message' => __('Dashboard data synced successfully.', 'wecoza-notifications')));
+        } catch (\Throwable $exception) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[ShortcodeController] Manual dashboard sync failed: ' . $exception->getMessage());
+            }
+
+            wp_send_json_error(array('message' => __('Failed to sync dashboard data. Please check logs.', 'wecoza-notifications')));
+        }
+    }
+
     public function ajax_update_shortcode()
     {
         check_ajax_referer('wecoza_shortcode_nonce', 'nonce');
 
         $shortcode_type = sanitize_text_field($_POST['shortcode_type']);
         $params = $_POST['params'] ? json_decode(stripslashes($_POST['params']), true) : array();
+        $container_id = isset($_POST['container_id']) ? sanitize_text_field($_POST['container_id']) : 'wecoza-shortcode-' . uniqid();
 
         $content = '';
 
         switch ($shortcode_type) {
             case 'class_status':
-                $content = $this->get_class_status_content($params);
+                $content = $this->get_class_status_inner($params, $container_id);
                 break;
             case 'pending_tasks':
                 $content = $this->get_pending_tasks_content($params);
@@ -736,6 +784,40 @@ class ShortcodeController
                 WHERE class_id = $1 AND task_type = $2 LIMIT 1";
 
         return $this->db->get_row($sql, array($class_id, $task_type));
+    }
+
+    /**
+     * Render manual sync control button
+     */
+    private function render_manual_sync_button($container_id, $position = 'top')
+    {
+        if (!is_user_logged_in()) {
+            return '';
+        }
+
+        if (!SecurityService::current_user_can(SecurityService::CAP_MANAGE_NOTIFICATIONS)) {
+            return '';
+        }
+
+        $position_class = $position === 'bottom' ? 'wecoza-sync-controls-bottom' : 'wecoza-sync-controls-top';
+
+        $label = esc_html__('Sync Class Data', 'wecoza-notifications');
+        $loading_label = esc_html__('Syncing...', 'wecoza-notifications');
+
+        ob_start();
+        ?>
+        <div class="wecoza-sync-controls <?php echo esc_attr($position_class); ?>">
+            <button type="button"
+                    class="button button-primary wecoza-run-dashboard-sync"
+                    data-container="<?php echo esc_attr($container_id); ?>"
+                    data-label="<?php echo esc_attr($label); ?>"
+                    data-loading-label="<?php echo esc_attr($loading_label); ?>">
+                <?php echo $label; ?>
+            </button>
+            <span class="wecoza-sync-status" aria-live="polite"></span>
+        </div>
+        <?php
+        return ob_get_clean();
     }
 
     /**

@@ -839,8 +839,7 @@ class PostgreSQLDatabaseService
             'class_id' => isset($event_data['class_id']) ? SecurityService::sanitize_int($event_data['class_id']) : null,
             'actor_id' => isset($event_data['actor_id']) ? SecurityService::sanitize_int($event_data['actor_id']) : null,
             'idempotency_key' => $event_data['idempotency_key'],
-            'occurred_at' => isset($event_data['occurred_at']) ? $event_data['occurred_at'] : date('Y-m-d H:i:s'),
-            'processed' => false
+            'occurred_at' => isset($event_data['occurred_at']) ? $event_data['occurred_at'] : date('Y-m-d H:i:s')
         );
 
         return $this->insert('events_log', $data);

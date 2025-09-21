@@ -23,7 +23,7 @@ return array(
         ),
         'dashboard_update' => array(
             'task_type' => 'class_created',
-            'status' => 'completed'
+            'status' => 'open'
         )
     ),
 
