@@ -72,7 +72,6 @@ class DatabaseService
             'notification_queue' => $wpdb->prefix . 'wecoza_notification_queue',
             'events_log' => $wpdb->prefix . 'wecoza_events_log',
             'dashboard_status' => $wpdb->prefix . 'wecoza_dashboard_status',
-            'audit_log' => $wpdb->prefix . 'wecoza_audit_log',
             'analytics' => $wpdb->prefix . 'wecoza_analytics',
             'template_versions' => $wpdb->prefix . 'wecoza_template_versions'
         );
@@ -842,7 +841,7 @@ class DatabaseService
             'is_default' => SecurityService::sanitize_int($data['is_default'] ?? 0),
             'client_assignments' => SecurityService::sanitize_json_for_db($data['client_assignments'] ?? array()),
             'site_assignments' => SecurityService::sanitize_json_for_db($data['site_assignments'] ?? array()),
-            'active' => SecurityService::sanitize_int($data['active'] ?? 1)
+            'is_active' => SecurityService::sanitize_int($data['is_active'] ?? 1)
         );
 
         // Validate required fields
@@ -851,7 +850,7 @@ class DatabaseService
         }
 
         $sql = "INSERT INTO `{$this->tables['supervisors']}`
-                (`name`, `email`, `role`, `is_default`, `client_assignments`, `site_assignments`, `active`, `created_at`, `updated_at`)
+                (`name`, `email`, `role`, `is_default`, `client_assignments`, `site_assignments`, `is_active`, `created_at`, `updated_at`)
                 VALUES (%s, %s, %s, %d, %s, %s, %d, %s, %s)";
 
         $params = array(
@@ -861,7 +860,7 @@ class DatabaseService
             $sanitized_data['is_default'],
             $sanitized_data['client_assignments'],
             $sanitized_data['site_assignments'],
-            $sanitized_data['active'],
+            $sanitized_data['is_active'],
             current_time('mysql'),
             current_time('mysql')
         );
@@ -896,7 +895,7 @@ class DatabaseService
         $sql = "SELECT * FROM {$this->tables['supervisors']}";
 
         if ($active_only) {
-            $sql .= " WHERE active = 1";
+            $sql .= " WHERE is_active = 1";
         }
 
         $sql .= " ORDER BY name ASC";
@@ -963,7 +962,7 @@ class DatabaseService
      */
     public function get_default_supervisor()
     {
-        $sql = "SELECT * FROM {$this->tables['supervisors']} WHERE is_default = 1 AND active = 1 LIMIT 1";
+        $sql = "SELECT * FROM {$this->tables['supervisors']} WHERE is_default = 1 AND is_active = 1 LIMIT 1";
         return $this->get_row($sql);
     }
 
@@ -978,7 +977,7 @@ class DatabaseService
         }
 
         $sql = "SELECT * FROM `{$this->tables['supervisors']}`
-                WHERE `active` = 1
+                WHERE `is_active` = 1
                 AND JSON_CONTAINS(`client_assignments`, %s)
                 ORDER BY `name` ASC";
 
@@ -997,7 +996,7 @@ class DatabaseService
         }
 
         $sql = "SELECT * FROM `{$this->tables['supervisors']}`
-                WHERE `active` = 1
+                WHERE `is_active` = 1
                 AND JSON_CONTAINS(`site_assignments`, %s)
                 ORDER BY `name` ASC";
 
@@ -1049,7 +1048,7 @@ class DatabaseService
         // Supervisor statistics
         $stats['supervisors'] = array(
             'total' => $this->get_var("SELECT COUNT(*) FROM `{$this->tables['supervisors']}`"),
-            'active' => $this->get_var("SELECT COUNT(*) FROM `{$this->tables['supervisors']}` WHERE `active` = %d", array(1))
+            'active' => $this->get_var("SELECT COUNT(*) FROM `{$this->tables['supervisors']}` WHERE `is_active` = %d", array(1))
         );
 
         return $stats;

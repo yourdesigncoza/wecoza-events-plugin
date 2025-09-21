@@ -277,10 +277,20 @@ class AuditController
         echo '<div class="metric-period">' . __('Errors/Critical', 'wecoza-notifications') . '</div>';
         echo '</div>';
 
+        $top_action = array('action' => 'N/A', 'count' => 0);
+        if (!empty($stats['by_action'])) {
+            $first = $stats['by_action'][0];
+            if (is_object($first)) {
+                $first = (array) $first;
+            }
+            $top_action['action'] = $first['action'] ?? 'N/A';
+            $top_action['count'] = isset($first['count']) ? intval($first['count']) : 0;
+        }
+
         echo '<div class="summary-card">';
         echo '<h3>' . __('Top Action', 'wecoza-notifications') . '</h3>';
-        echo '<div class="metric-value">' . esc_html($stats['by_action'][0]['action'] ?? 'N/A') . '</div>';
-        echo '<div class="metric-period">' . number_format($stats['by_action'][0]['count'] ?? 0) . ' ' . __('occurrences', 'wecoza-notifications') . '</div>';
+        echo '<div class="metric-value">' . esc_html($top_action['action']) . '</div>';
+        echo '<div class="metric-period">' . number_format($top_action['count']) . ' ' . __('occurrences', 'wecoza-notifications') . '</div>';
         echo '</div>';
 
         echo '</div>';
@@ -514,12 +524,7 @@ class AuditController
 
     private function get_unique_actions()
     {
-        global $wpdb;
-
-        return $wpdb->get_col(
-            "SELECT DISTINCT action FROM {$wpdb->prefix}wecoza_audit_log
-             ORDER BY action ASC"
-        );
+        return $this->audit_service->get_unique_actions();
     }
 
     private function get_check_title($check_name)

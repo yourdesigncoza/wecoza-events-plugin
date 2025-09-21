@@ -37,7 +37,6 @@ class SupervisorController
      */
     private function init_hooks()
     {
-        add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_post_wecoza_create_supervisor', array($this, 'handle_create_supervisor'));
         add_action('admin_post_wecoza_update_supervisor', array($this, 'handle_update_supervisor'));
         add_action('admin_post_wecoza_delete_supervisor', array($this, 'handle_delete_supervisor'));
@@ -46,21 +45,6 @@ class SupervisorController
         // AJAX hooks
         add_action('wp_ajax_wecoza_get_supervisor', array($this, 'ajax_get_supervisor'));
         add_action('wp_ajax_wecoza_supervisor_stats', array($this, 'ajax_get_stats'));
-    }
-
-    /**
-     * Add admin menu
-     */
-    public function add_admin_menu()
-    {
-        add_submenu_page(
-            'wecoza-notifications',
-            'Supervisors',
-            'Supervisors',
-            SecurityService::CAP_MANAGE_SUPERVISORS,
-            'wecoza-supervisors',
-            array($this, 'admin_page')
-        );
     }
 
     /**
@@ -163,7 +147,7 @@ class SupervisorController
                                 <td><?php echo esc_html($supervisor->email); ?></td>
                                 <td><?php echo esc_html(ucfirst($supervisor->role)); ?></td>
                                 <td>
-                                    <?php if ($supervisor->active): ?>
+                                    <?php if ($supervisor->is_active): ?>
                                         <span class="wecoza-status-active" style="color: #25b003; font-weight: bold;">● Active</span>
                                     <?php else: ?>
                                         <span class="wecoza-status-inactive" style="color: #fa3b1d; font-weight: bold;">● Inactive</span>
@@ -243,7 +227,7 @@ class SupervisorController
                             </label>
                             <br>
                             <label>
-                                <input type="checkbox" name="active" value="1" checked>
+                                <input type="checkbox" name="is_active" value="1" checked>
                                 Active
                             </label>
                         </td>
@@ -304,7 +288,7 @@ class SupervisorController
                             </label>
                             <br>
                             <label>
-                                <input type="checkbox" name="active" value="1" <?php checked($supervisor->active); ?>>
+                                <input type="checkbox" name="is_active" value="1" <?php checked($supervisor->is_active); ?>>
                                 Active
                             </label>
                         </td>
@@ -352,7 +336,7 @@ class SupervisorController
                 <tr>
                     <th scope="row">Status</th>
                     <td>
-                        <?php if ($supervisor->active): ?>
+                        <?php if ($supervisor->is_active): ?>
                             <span style="color: #25b003; font-weight: bold;">● Active</span>
                         <?php else: ?>
                             <span style="color: #fa3b1d; font-weight: bold;">● Inactive</span>
@@ -422,7 +406,7 @@ class SupervisorController
             'email' => sanitize_email($_POST['email']),
             'role' => sanitize_text_field($_POST['role']),
             'is_default' => isset($_POST['is_default']),
-            'active' => isset($_POST['active'])
+            'is_active' => isset($_POST['is_active'])
         );
 
         $result = $this->supervisor_model->create($data);
@@ -455,7 +439,7 @@ class SupervisorController
             'email' => sanitize_email($_POST['email']),
             'role' => sanitize_text_field($_POST['role']),
             'is_default' => isset($_POST['is_default']),
-            'active' => isset($_POST['active'])
+            'is_active' => isset($_POST['is_active'])
         );
 
         $result = $this->supervisor_model->update($supervisor_id, $data);

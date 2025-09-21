@@ -320,6 +320,14 @@ class PostgreSQLDatabaseService
         }
 
         try {
+            if (!$this->ensure_connection()) {
+                $this->log_error('Database insert failed: no active connection', array(
+                    'table' => $table,
+                    'data' => $data
+                ));
+                return false;
+            }
+
             $columns = array_keys($data);
             $placeholders = array_fill(0, count($columns), '?');
 
@@ -368,6 +376,15 @@ class PostgreSQLDatabaseService
         }
 
         try {
+            if (!$this->ensure_connection()) {
+                $this->log_error('Database update failed: no active connection', array(
+                    'table' => $table,
+                    'data' => $data,
+                    'where' => $where
+                ));
+                return false;
+            }
+
             $set_clauses = array();
             $params = array();
 
@@ -427,6 +444,14 @@ class PostgreSQLDatabaseService
         }
 
         try {
+            if (!$this->ensure_connection()) {
+                $this->log_error('Database delete failed: no active connection', array(
+                    'table' => $table,
+                    'where' => $where
+                ));
+                return false;
+            }
+
             $where_clauses = array();
             $params = array();
 

@@ -10,28 +10,7 @@ function wecoza_create_audit_tables()
 
     $charset_collate = $wpdb->get_charset_collate();
 
-    // Create audit log table
-    $audit_table = $wpdb->prefix . 'wecoza_audit_log';
-    $audit_sql = "CREATE TABLE $audit_table (
-        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-        level varchar(20) NOT NULL,
-        action varchar(100) NOT NULL,
-        message text NOT NULL,
-        context longtext,
-        user_id bigint(20) unsigned,
-        ip_address varchar(45),
-        user_agent text,
-        request_uri text,
-        created_at datetime DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        KEY level (level),
-        KEY action (action),
-        KEY user_id (user_id),
-        KEY created_at (created_at),
-        KEY level_created (level, created_at)
-    ) $charset_collate;";
-
-    // Create analytics table
+    // Analytics table remains in WordPress for legacy reporting
     $analytics_table = $wpdb->prefix . 'wecoza_analytics';
     $analytics_sql = "CREATE TABLE $analytics_table (
         id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -48,8 +27,7 @@ function wecoza_create_audit_tables()
         KEY created_at (created_at)
     ) $charset_collate;";
 
-    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-    dbDelta($audit_sql);
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     dbDelta($analytics_sql);
 
     update_option('wecoza_audit_db_version', '1.0');

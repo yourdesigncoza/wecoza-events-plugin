@@ -319,7 +319,7 @@ class Core
             __('Supervisors', 'wecoza-notifications'),
             'manage_options',
             'wecoza-supervisors',
-            array($this, 'supervisors_page')
+            array($this->supervisor_controller, 'admin_page')
         );
     }
 
@@ -336,12 +336,6 @@ class Core
     /**
      * Supervisors page callback
      */
-    public function supervisors_page()
-    {
-        $supervisor_controller = new SupervisorController();
-        $supervisor_controller->render_page();
-    }
-
     /**
      * Enqueue admin scripts
      */

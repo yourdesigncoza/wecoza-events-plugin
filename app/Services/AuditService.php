@@ -308,58 +308,117 @@ class AuditService
 
     public function get_audit_logs($filters = array(), $limit = 50, $offset = 0)
     {
-        global $wpdb;
+        $table = $this->db_service->get_table('audit_log');
+        if (!$table) {
+            return array();
+        }
 
-        $where_conditions = array('1=1');
+        $conditions = array();
         $params = array();
+        $param_index = 1;
 
         if (!empty($filters['level'])) {
-            $where_conditions[] = 'level = %s';
+            $conditions[] = 'level = $' . $param_index++;
             $params[] = $filters['level'];
         }
 
         if (!empty($filters['action'])) {
-            $where_conditions[] = 'action = %s';
+            $conditions[] = 'action = $' . $param_index++;
             $params[] = $filters['action'];
         }
 
         if (!empty($filters['user_id'])) {
-            $where_conditions[] = 'user_id = %d';
-            $params[] = $filters['user_id'];
+            $conditions[] = 'user_id = $' . $param_index++;
+            $params[] = intval($filters['user_id']);
         }
 
         if (!empty($filters['date_from'])) {
-            $where_conditions[] = 'created_at >= %s';
+            $conditions[] = 'created_at >= $' . $param_index++;
             $params[] = $filters['date_from'];
         }
 
         if (!empty($filters['date_to'])) {
-            $where_conditions[] = 'created_at <= %s';
+            $conditions[] = 'created_at <= $' . $param_index++;
             $params[] = $filters['date_to'];
         }
 
         if (!empty($filters['search'])) {
-            $where_conditions[] = '(message LIKE %s OR context LIKE %s)';
-            $search_term = '%' . $wpdb->esc_like($filters['search']) . '%';
-            $params[] = $search_term;
-            $params[] = $search_term;
+            $conditions[] = '(message ILIKE $' . $param_index . ' OR context::text ILIKE $' . ($param_index + 1) . ')';
+            $like = '%' . $filters['search'] . '%';
+            $params[] = $like;
+            $params[] = $like;
+            $param_index += 2;
         }
 
-        $where_clause = implode(' AND ', $where_conditions);
+        $query = 'SELECT * FROM ' . $table;
+        if (!empty($conditions)) {
+            $query .= ' WHERE ' . implode(' AND ', $conditions);
+        }
 
-        $query = "
-            SELECT al.*, u.display_name as user_name, u.user_email
-            FROM {$wpdb->prefix}wecoza_audit_log al
-            LEFT JOIN {$wpdb->users} u ON al.user_id = u.ID
-            WHERE {$where_clause}
-            ORDER BY al.created_at DESC
-            LIMIT %d OFFSET %d
-        ";
+        $query .= ' ORDER BY created_at DESC LIMIT $' . $param_index++;
+        $params[] = intval($limit);
 
-        $params[] = $limit;
-        $params[] = $offset;
+        $query .= ' OFFSET $' . $param_index++;
+        $params[] = intval($offset);
 
-        return $wpdb->get_results($wpdb->prepare($query, ...$params));
+        $logs = $this->db_service->get_results($query, $params);
+        if (!is_array($logs)) {
+            return array();
+        }
+
+        $user_ids = array();
+        foreach ($logs as $log) {
+            $log->user_name = null;
+            $log->user_email = null;
+
+            if (!empty($log->user_id)) {
+                $user_ids[] = intval($log->user_id);
+            }
+        }
+
+        $user_ids = array_unique($user_ids);
+
+        if (!empty($user_ids)) {
+            $users = get_users(array(
+                'include' => $user_ids,
+                'fields' => array('ID', 'display_name', 'user_email')
+            ));
+
+            $user_map = array();
+            foreach ($users as $user) {
+                $user_map[$user->ID] = $user;
+            }
+
+            foreach ($logs as $log) {
+                $user_id = intval($log->user_id);
+                if ($user_id && isset($user_map[$user_id])) {
+                    $log->user_name = $user_map[$user_id]->display_name;
+                    $log->user_email = $user_map[$user_id]->user_email;
+                }
+            }
+        }
+
+        return $logs;
+    }
+
+    public function get_unique_actions()
+    {
+        $table = $this->db_service->get_table('audit_log');
+        if (!$table) {
+            return array();
+        }
+
+        $rows = $this->db_service->get_results(
+            "SELECT DISTINCT action FROM {$table} ORDER BY action ASC"
+        );
+
+        if (!is_array($rows)) {
+            return array();
+        }
+
+        return array_map(function ($row) {
+            return $row->action;
+        }, $rows);
     }
 
     public function get_audit_stats($period = '30 days')
@@ -369,20 +428,29 @@ class AuditService
         // PostgreSQL interval syntax
         $interval = $period;
 
-        $stats['total_logs'] = $this->db_service->get_var(
+        $stats['total_logs'] = intval($this->db_service->get_var(
             "SELECT COUNT(*) FROM {$this->db_service->get_table('audit_log')}
              WHERE created_at >= NOW() - INTERVAL '$interval'"
-        );
+        ));
 
-        $stats['by_level'] = $this->db_service->get_results(
+        $level_rows = $this->db_service->get_results(
             "SELECT level, COUNT(*) as count
              FROM {$this->db_service->get_table('audit_log')}
              WHERE created_at >= NOW() - INTERVAL '$interval'
              GROUP BY level
              ORDER BY count DESC"
         );
+        $stats['by_level'] = array();
+        if (is_array($level_rows)) {
+            foreach ($level_rows as $row) {
+                $stats['by_level'][] = array(
+                    'level' => $row->level,
+                    'count' => intval($row->count)
+                );
+            }
+        }
 
-        $stats['by_action'] = $this->db_service->get_results(
+        $action_rows = $this->db_service->get_results(
             "SELECT action, COUNT(*) as count
              FROM {$this->db_service->get_table('audit_log')}
              WHERE created_at >= NOW() - INTERVAL '$interval'
@@ -390,20 +458,39 @@ class AuditService
              ORDER BY count DESC
              LIMIT 10"
         );
+        $stats['by_action'] = array();
+        if (is_array($action_rows)) {
+            foreach ($action_rows as $row) {
+                $stats['by_action'][] = array(
+                    'action' => $row->action,
+                    'count' => intval($row->count)
+                );
+            }
+        }
 
-        $stats['error_rate'] = $this->db_service->get_var(
-            "SELECT ROUND((COUNT(CASE WHEN level IN ('error', 'critical') THEN 1 END)::numeric / COUNT(*)) * 100, 2)
+        $error_rate = $this->db_service->get_var(
+            "SELECT ROUND((COUNT(CASE WHEN level IN ('error', 'critical') THEN 1 END)::numeric / NULLIF(COUNT(*),0)) * 100, 2)
              FROM {$this->db_service->get_table('audit_log')}
              WHERE created_at >= NOW() - INTERVAL '$interval'"
         );
+        $stats['error_rate'] = $error_rate !== null ? floatval($error_rate) : 0.0;
 
-        $stats['daily_counts'] = $this->db_service->get_results(
+        $daily_rows = $this->db_service->get_results(
             "SELECT DATE(created_at) as date, COUNT(*) as count
              FROM {$this->db_service->get_table('audit_log')}
              WHERE created_at >= NOW() - INTERVAL '$interval'
              GROUP BY DATE(created_at)
              ORDER BY date ASC"
         );
+        $stats['daily_counts'] = array();
+        if (is_array($daily_rows)) {
+            foreach ($daily_rows as $row) {
+                $stats['daily_counts'][] = array(
+                    'date' => $row->date,
+                    'count' => intval($row->count)
+                );
+            }
+        }
 
         return $stats;
     }
@@ -438,13 +525,18 @@ class AuditService
 
     public function cleanup_old_logs($retention_days = 90)
     {
-        global $wpdb;
+        $table = $this->db_service->get_table('audit_log');
+        if (!$table) {
+            return 0;
+        }
 
-        $deleted = $wpdb->query($wpdb->prepare(
-            "DELETE FROM {$wpdb->prefix}wecoza_audit_log
-             WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)",
-            $retention_days
-        ));
+        $interval_days = max(1, intval($retention_days)) . ' days';
+        $stmt = $this->db_service->query(
+            "DELETE FROM {$table} WHERE created_at < NOW() - ($1::interval)",
+            array($interval_days)
+        );
+
+        $deleted = ($stmt && method_exists($stmt, 'rowCount')) ? $stmt->rowCount() : 0;
 
         if ($deleted > 0) {
             $this->log_info(
@@ -514,20 +606,23 @@ class AuditService
 
     private function trigger_alert($level, $action, $message, $context)
     {
-        $alert_threshold = get_option('wecoza_alert_threshold', 5);
-        $time_window = get_option('wecoza_alert_window', 300); // 5 minutes
+        $alert_threshold = intval(get_option('wecoza_alert_threshold', 5));
+        $time_window = intval(get_option('wecoza_alert_window', 300)); // seconds
 
-        global $wpdb;
+        $table = $this->db_service->get_table('audit_log');
+        if (!$table) {
+            return;
+        }
 
-        $recent_count = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}wecoza_audit_log
+        $seconds = max(1, $time_window);
+        $recent_count = $this->db_service->get_var(
+            "SELECT COUNT(*) FROM {$table}
              WHERE level IN ('error', 'critical')
-             AND created_at >= DATE_SUB(NOW(), INTERVAL %d SECOND)",
-            $time_window
-        ));
+             AND created_at >= NOW() - INTERVAL '$seconds seconds'"
+        );
 
-        if ($recent_count >= $alert_threshold) {
-            $this->send_alert_notification($level, $action, $message, $context, $recent_count);
+        if (intval($recent_count) >= $alert_threshold && $alert_threshold > 0) {
+            $this->send_alert_notification($level, $action, $message, $context, intval($recent_count));
         }
     }
 

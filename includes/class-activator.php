@@ -152,11 +152,33 @@ class Activator
             KEY class_id (class_id)
         ) $charset_collate;";
 
+        // Template versions history table
+        $template_versions_table = $wpdb->prefix . 'wecoza_template_versions';
+        $template_versions_sql = "CREATE TABLE $template_versions_table (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            template_id varchar(100) NOT NULL,
+            version varchar(20) NOT NULL,
+            subject text NOT NULL,
+            body longtext NOT NULL,
+            custom_css longtext,
+            created_by bigint(20) unsigned,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            is_backup tinyint(1) DEFAULT 0,
+            is_restore tinyint(1) DEFAULT 0,
+            notes text,
+            PRIMARY KEY (id),
+            KEY template_id (template_id),
+            KEY version (version),
+            KEY created_at (created_at),
+            KEY created_by (created_by)
+        ) $charset_collate;";
+
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($supervisors_sql);
         dbDelta($queue_sql);
         dbDelta($events_sql);
         dbDelta($status_sql);
+        dbDelta($template_versions_sql);
 
         // Store database version
         update_option('wecoza_notifications_db_version', '1.0.0');

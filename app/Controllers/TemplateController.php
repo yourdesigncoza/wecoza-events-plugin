@@ -6,6 +6,8 @@ class TemplateController
 {
     private $template_service;
     private $db_service;
+    private $template_versions_table_checked = false;
+    private $template_versions_table_exists = false;
 
     public function __construct()
     {
@@ -409,6 +411,60 @@ class TemplateController
         echo '</div>';
     }
 
+    private function ensure_template_versions_table()
+    {
+        if ($this->template_versions_table_checked) {
+            return $this->template_versions_table_exists;
+        }
+
+        $this->template_versions_table_checked = true;
+
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'wecoza_template_versions';
+        $like  = $wpdb->esc_like($table);
+        $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $like));
+
+        if ($exists !== $table) {
+            if (!function_exists('dbDelta')) {
+                require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+            }
+
+            $charset_collate = $wpdb->get_charset_collate();
+
+            $sql = "CREATE TABLE $table (
+                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                template_id varchar(100) NOT NULL,
+                version varchar(20) NOT NULL,
+                subject text NOT NULL,
+                body longtext NOT NULL,
+                custom_css longtext,
+                created_by bigint(20) unsigned,
+                created_at datetime DEFAULT CURRENT_TIMESTAMP,
+                is_backup tinyint(1) DEFAULT 0,
+                is_restore tinyint(1) DEFAULT 0,
+                notes text,
+                PRIMARY KEY (id),
+                KEY template_id (template_id),
+                KEY version (version),
+                KEY created_at (created_at),
+                KEY created_by (created_by)
+            ) $charset_collate;";
+
+            dbDelta($sql);
+
+            $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $like));
+        }
+
+        $this->template_versions_table_exists = ($exists === $table);
+
+        if (!$this->template_versions_table_exists && function_exists('error_log')) {
+            error_log('WECOZA Notifications TemplateController: template versions table missing.');
+        }
+
+        return $this->template_versions_table_exists;
+    }
+
     public function ajax_save_template()
     {
         check_ajax_referer('wecoza_templates_nonce', 'nonce');
@@ -531,6 +587,10 @@ class TemplateController
 
     private function get_template_versions($template_id)
     {
+        if (!$this->ensure_template_versions_table()) {
+            return array();
+        }
+
         global $wpdb;
 
         return $wpdb->get_results($wpdb->prepare(
@@ -555,6 +615,10 @@ class TemplateController
 
     private function get_template_last_modified($template_id)
     {
+        if (!$this->ensure_template_versions_table()) {
+            return __('Never', 'wecoza-notifications');
+        }
+
         global $wpdb;
 
         $last_modified = $wpdb->get_var($wpdb->prepare(
@@ -638,6 +702,10 @@ class TemplateController
 
     private function save_template($template_id, $template_data)
     {
+        if (!$this->ensure_template_versions_table()) {
+            return false;
+        }
+
         global $wpdb;
 
         if (get_option('wecoza_template_auto_backup', 1)) {
@@ -669,6 +737,10 @@ class TemplateController
 
     private function create_template_backup($template_id)
     {
+        if (!$this->ensure_template_versions_table()) {
+            return;
+        }
+
         $current_data = $this->get_current_template_content($template_id);
         if ($current_data) {
             global $wpdb;
@@ -684,6 +756,10 @@ class TemplateController
 
     private function get_next_version_number($template_id)
     {
+        if (!$this->ensure_template_versions_table()) {
+            return 1;
+        }
+
         global $wpdb;
 
         $latest_version = $wpdb->get_var($wpdb->prepare(
@@ -696,6 +772,10 @@ class TemplateController
 
     private function cleanup_old_versions($template_id)
     {
+        if (!$this->ensure_template_versions_table()) {
+            return;
+        }
+
         $retention = get_option('wecoza_template_version_retention', 10);
         global $wpdb;
 
@@ -774,6 +854,10 @@ class TemplateController
 
     private function get_current_template_content($template_id)
     {
+        if (!$this->ensure_template_versions_table()) {
+            return array();
+        }
+
         global $wpdb;
 
         return $wpdb->get_row($wpdb->prepare(
@@ -787,6 +871,10 @@ class TemplateController
 
     private function restore_template_version($version_id)
     {
+        if (!$this->ensure_template_versions_table()) {
+            return false;
+        }
+
         global $wpdb;
 
         $version_data = $wpdb->get_row($wpdb->prepare(
@@ -872,6 +960,10 @@ class TemplateController
 
     private function delete_template_version($version_id)
     {
+        if (!$this->ensure_template_versions_table()) {
+            return false;
+        }
+
         global $wpdb;
 
         return $wpdb->delete(
