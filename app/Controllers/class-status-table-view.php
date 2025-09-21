@@ -12,8 +12,17 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+$filters = apply_filters('wecoza_class_status_filters', $filters, $tasks, $atts);
+$tasks   = apply_filters('wecoza_class_status_tasks', $tasks, $atts);
+
+$manual_sync_markup = $controller->render_manual_sync_button($container_id, 'top');
+$can_sync = !empty(trim($manual_sync_markup));
+
+if ($can_sync) {
+    echo '<div class="d-none wecoza-sync-proxy">' . $manual_sync_markup . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+}
 ?>
-<button class="btn btn-subtle-primary me-1 mb-1" type="button" id="sync-class-data">Sync Class Data</button>
+
 <div class="card shadow-none border my-3" data-component-card="data-component-card">
 
 
@@ -27,18 +36,27 @@ if (!defined('ABSPATH')) {
                             </h4>
                         </div>
                         <div class="search-box col-auto">
-                          <form class="position-relative"><input class="form-control search-input search form-control-sm" type="search" placeholder="Search" aria-label="Search">
-                            <svg class="svg-inline--fa fa-magnifying-glass search-box-icon" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="magnifying-glass" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" data-fa-i2svg=""><path fill="currentColor" d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"></path></svg><!-- <span class="fas fa-search search-box-icon"></span> Font Awesome fontawesome.com -->
-                          </form>
+                                <form class="position-relative mb-0" role="search">
+                                    <input class="form-control search-input search form-control-sm wecoza-class-status-search"
+                                           type="search"
+                                           placeholder="<?php esc_attr_e('Search', 'wecoza-notifications'); ?>"
+                                           aria-label="<?php esc_attr_e('Search class workflow rows', 'wecoza-notifications'); ?>">
+                                    <i class="bi bi-search search-box-icon"></i>
+                                </form>
                         </div>
                         <div class="col-auto">
                             <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="syncClassData()">
-                                    Refresh
+                                <button type="button"
+                                        class="btn btn-outline-secondary btn-sm wecoza-class-status-sync-btn"
+                                        onclick="syncClassData('<?php echo esc_js($container_id); ?>')"
+                                        <?php disabled(!$can_sync); ?>>
+                                    <?php esc_html_e('Refresh', 'wecoza-notifications'); ?>
                                     <i class="bi bi-arrow-clockwise ms-1"></i>
                                 </button>
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="exportClassStatus()">
-                                    Export
+                                <button type="button"
+                                        class="btn btn-outline-primary btn-sm"
+                                        onclick="exportClassStatus('<?php echo esc_js($container_id); ?>')">
+                                    <?php esc_html_e('Export', 'wecoza-notifications'); ?>
                                     <i class="bi bi-download ms-1"></i>
                                 </button>
                             </div>

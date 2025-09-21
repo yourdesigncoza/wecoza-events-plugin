@@ -47,7 +47,9 @@
                     params: params,
                     refreshInterval: refreshInterval * 1000,
                     lastUpdated: Date.now(),
-                    $element: $container
+                    $element: $container,
+                    currentFilter: 'all',
+                    currentSearch: ''
                 };
 
                 self.instances.set(instance.id, instance);
@@ -84,6 +86,23 @@
             $(document).on('click', '.wecoza-task-filter', function(e) {
                 e.preventDefault();
                 self.handleTaskFilter($(this));
+            });
+
+            // Table search input
+            $(document).on('input', '.wecoza-class-status-search', function() {
+                var $input = $(this);
+                var query = ($input.val() || '').toLowerCase();
+                var $container = $input.closest('.wecoza-shortcode-container');
+                var containerId = $container.attr('id');
+                var instance = self.instances.get(containerId);
+
+                if (instance) {
+                    instance.currentSearch = query;
+                    var currentFilter = instance.currentFilter || 'all';
+                    self.applyRowFilters($container, currentFilter, query);
+                } else {
+                    self.applyRowFilters($container, 'all', query);
+                }
             });
 
         },
@@ -152,6 +171,27 @@
                             id: containerId
                         });
 
+                        var filter = instance.currentFilter || 'all';
+                        var search = instance.currentSearch || '';
+
+                        var $filterButtons = instance.$element.find('.wecoza-task-filter');
+                        if ($filterButtons.length) {
+                            $filterButtons.removeClass('active btn-phoenix-primary text-body-tertiary').addClass('btn-subtle-primary');
+                            $filterButtons.each(function() {
+                                var $button = $(this);
+                                if ($button.data('task-filter') === filter) {
+                                    $button.removeClass('btn-subtle-primary').addClass('active btn-phoenix-primary text-body-tertiary');
+                                }
+                            });
+                        }
+
+                        var $searchInput = instance.$element.find('.wecoza-class-status-search');
+                        if ($searchInput.length) {
+                            $searchInput.val(search);
+                        }
+
+                        self.applyRowFilters(instance.$element, filter, search);
+
                     }
                 },
                 error: function(xhr, status, error) {
@@ -186,6 +226,9 @@
             }
 
             var self = this;
+            var $container = $button.closest('.wecoza-shortcode-container');
+            var containerId = $container.attr('id');
+            var originalLabel = $button.html();
 
             // Disable button and show loading
             $button.prop('disabled', true).text('Completing...');
@@ -202,31 +245,25 @@
                 success: function(response) {
                     if (response.success) {
                         self.showMessage('Task marked as complete!', 'success');
-
-                        // Update the tile status
-                        var $tile = $button.closest('.wecoza-status-tile');
-                        $tile.removeClass('open-task').addClass('informed');
-                        $tile.find('.wecoza-status-badge')
-                             .removeClass('open')
-                             .addClass('informed')
-                             .text('✅ Informed');
-
-                        // Hide actions
-                        $tile.find('.wecoza-tile-actions').fadeOut();
-
-                        // Refresh related shortcodes after a short delay
-                        setTimeout(function() {
+                        if (containerId) {
+                            self.refreshShortcode(containerId);
+                        } else {
                             self.refreshAllShortcodes();
-                        }, 1000);
+                        }
 
                     } else {
                         self.showMessage(response.data.message || 'Failed to complete task', 'error');
-                        $button.prop('disabled', false).text('Mark Complete');
+                        $button.prop('disabled', false).html(originalLabel);
                     }
                 },
                 error: function() {
                     self.showMessage('Error: Failed to complete task', 'error');
-                    $button.prop('disabled', false).text('Mark Complete');
+                    $button.prop('disabled', false).html(originalLabel);
+                },
+                complete: function() {
+                    if ($button.prop('disabled')) {
+                        $button.prop('disabled', false).html(originalLabel);
+                    }
                 }
             });
         },
@@ -241,6 +278,8 @@
                 return;
             }
 
+            var $container = $button.closest('.wecoza-shortcode-container');
+            var containerId = $container.attr('id');
             var $status = $button.siblings('.wecoza-sync-status');
             var defaultLabel = $button.data('label') || $button.text();
             var loadingLabel = $button.data('loading-label') || 'Syncing...';
@@ -267,9 +306,11 @@
                             $status.text('Last synced just now');
                         }
 
-                        setTimeout(function() {
+                        if (containerId) {
+                            self.refreshShortcode(containerId);
+                        } else {
                             self.refreshAllShortcodes();
-                        }, 500);
+                        }
                     } else {
                         var errorMessage = (response.data && response.data.message) ? response.data.message : 'Failed to sync dashboard.';
                         self.showMessage(errorMessage, 'error');
@@ -302,9 +343,9 @@
             var filter = $button.data('task-filter') || 'all';
             var $group = $button.closest('.wecoza-task-filter-group');
             var $container = $button.closest('.wecoza-shortcode-container');
-            var $rows = $container.find('tbody tr.wecoza-task-row');
+            var containerId = $container.attr('id');
+            var instance = this.instances.get(containerId);
 
-            // Update button styles
             if ($group.length) {
                 $group.find('.wecoza-task-filter').each(function() {
                     var $btn = $(this);
@@ -314,20 +355,27 @@
                 $button.addClass('active').removeClass('btn-subtle-primary').addClass('btn-phoenix-primary text-body-tertiary');
             }
 
-            // Apply filtering
-            if (filter === 'all') {
-                $rows.removeClass('d-none');
-                return;
+            if (instance) {
+                instance.currentFilter = filter;
+                var currentSearch = instance.currentSearch || '';
+                this.applyRowFilters($container, filter, currentSearch);
+            } else {
+                this.applyRowFilters($container, filter, '');
             }
+        },
 
-            $rows.each(function() {
+        /**
+         * Apply filter & search against table rows
+         */
+        applyRowFilters: function($container, filter, query) {
+            filter = filter || 'all';
+            query = (query || '').trim().toLowerCase();
+
+            $container.find('tbody tr.wecoza-task-row').each(function() {
                 var $row = $(this);
-                var rowFilter = $row.data('task-type');
-                if (rowFilter === filter) {
-                    $row.removeClass('d-none');
-                } else {
-                    $row.addClass('d-none');
-                }
+                var matchesFilter = (filter === 'all') || ($row.data('task-type') === filter);
+                var matchesSearch = !query || $row.text().toLowerCase().indexOf(query) !== -1;
+                $row.toggle(matchesFilter && matchesSearch);
             });
         },
 
@@ -467,3 +515,110 @@
     });
 
 })(jQuery);
+
+window.syncClassData = function(containerId) {
+    if (!window.wecozaShortcodeManager) {
+        return;
+    }
+
+    var manager = window.wecozaShortcodeManager;
+    var instance = manager.instances.get(containerId);
+    if (!instance) {
+        return;
+    }
+
+    var $container = instance.$element;
+    var $button = $container.find('.wecoza-class-status-sync-btn');
+    var originalLabel = $button.length ? $button.html() : '';
+
+    if ($button.length) {
+        $button.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+    }
+
+    $.ajax({
+        url: wecoza_ajax.ajax_url,
+        type: 'POST',
+        data: {
+            action: 'wecoza_run_dashboard_sync',
+            nonce: wecoza_ajax.nonce
+        },
+        success: function(response) {
+            if (response.success) {
+                manager.showMessage('Dashboard data synced successfully.', 'success');
+                manager.refreshShortcode(containerId);
+            } else {
+                var message = (response.data && response.data.message) ? response.data.message : 'Failed to sync dashboard data.';
+                manager.showMessage(message, 'error');
+            }
+        },
+        error: function(xhr) {
+            var message = 'Failed to sync dashboard data.';
+            if (xhr && xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                message = xhr.responseJSON.data.message;
+            }
+            manager.showMessage(message, 'error');
+        },
+        complete: function() {
+            if ($button.length) {
+                $button.prop('disabled', false).html(originalLabel);
+            }
+        }
+    });
+};
+
+window.exportClassStatus = function(containerId) {
+    if (!window.wecozaShortcodeManager) {
+        return;
+    }
+
+    var manager = window.wecozaShortcodeManager;
+    var instance = manager.instances.get(containerId);
+    if (!instance) {
+        manager.showMessage('Unable to locate table data.', 'error');
+        return;
+    }
+
+    var $container = instance.$element;
+    var headers = [];
+    $container.find('table thead tr th').each(function() {
+        headers.push($(this).text().trim());
+    });
+
+    var rows = [headers];
+    $container.find('tbody tr.wecoza-task-row:visible').each(function() {
+        var rowData = [];
+        $(this).find('td').each(function() {
+            rowData.push($(this).text().trim());
+        });
+        rows.push(rowData);
+    });
+
+    if (rows.length <= 1) {
+        manager.showMessage('Nothing to export.', 'info');
+        return;
+    }
+
+    var csv = rows.map(function(cols) {
+        return cols.map(function(col) {
+            return '"' + col.replace(/"/g, '""') + '"';
+        }).join(',');
+    }).join('\n');
+
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var fileName = 'class-status-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv';
+
+    if (navigator.msSaveBlob) {
+        navigator.msSaveBlob(blob, fileName);
+    } else {
+        var link = document.createElement('a');
+        var url = URL.createObjectURL(blob);
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    manager.showMessage('Export generated.', 'success');
+};
