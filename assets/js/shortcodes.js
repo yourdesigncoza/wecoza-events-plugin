@@ -80,10 +80,12 @@
                 self.handleManualSync($(this));
             });
 
-            // Window focus event to refresh data
-            $(window).on('focus', function() {
-                self.refreshAllShortcodes();
+            // Task filter buttons
+            $(document).on('click', '.wecoza-task-filter', function(e) {
+                e.preventDefault();
+                self.handleTaskFilter($(this));
             });
+
         },
 
         /**
@@ -289,6 +291,42 @@
                 complete: function() {
                     var finalLabel = $button.data('default-label') || defaultLabel;
                     $button.removeClass('is-loading').prop('disabled', false).text(finalLabel);
+                }
+            });
+        },
+
+        /**
+         * Handle task filtering
+         */
+        handleTaskFilter: function($button) {
+            var filter = $button.data('task-filter') || 'all';
+            var $group = $button.closest('.wecoza-task-filter-group');
+            var $container = $button.closest('.wecoza-shortcode-container');
+            var $rows = $container.find('tbody tr.wecoza-task-row');
+
+            // Update button styles
+            if ($group.length) {
+                $group.find('.wecoza-task-filter').each(function() {
+                    var $btn = $(this);
+                    $btn.removeClass('active btn-phoenix-primary text-body-tertiary').addClass('btn-subtle-primary');
+                });
+
+                $button.addClass('active').removeClass('btn-subtle-primary').addClass('btn-phoenix-primary text-body-tertiary');
+            }
+
+            // Apply filtering
+            if (filter === 'all') {
+                $rows.removeClass('d-none');
+                return;
+            }
+
+            $rows.each(function() {
+                var $row = $(this);
+                var rowFilter = $row.data('task-type');
+                if (rowFilter === filter) {
+                    $row.removeClass('d-none');
+                } else {
+                    $row.addClass('d-none');
                 }
             });
         },

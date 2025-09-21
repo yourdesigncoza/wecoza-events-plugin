@@ -115,7 +115,6 @@ class ShortcodeController
             'client_id' => '',
             'user_id' => 'current',
             'status' => 'all',
-            'view' => 'grid',
             'show_completed' => 'false',
             'limit' => '10',
             'sort' => 'due_date',
@@ -129,7 +128,7 @@ class ShortcodeController
         ob_start();
         ?>
         <div id="<?php echo esc_attr($container_id); ?>"
-             class="wecoza-shortcode-container wecoza-class-status-container <?php echo esc_attr($atts['view']); ?>-view"
+             class="wecoza-shortcode-container wecoza-class-status-container"
              data-wecoza-shortcode="class_status"
              data-wecoza-params="<?php echo esc_attr(json_encode($atts)); ?>"
              data-refresh-interval="<?php echo esc_attr($atts['refresh_interval']); ?>">
@@ -146,75 +145,43 @@ class ShortcodeController
      */
     private function get_class_status_inner($atts, $container_id)
     {
-        ob_start();
-
-        echo $this->render_manual_sync_button($container_id, 'top');
-        echo $this->get_class_status_content($atts);
-        echo $this->render_manual_sync_button($container_id, 'bottom');
-
-        return ob_get_clean();
-    }
-
-    /**
-     * Get class status content
-     */
-    private function get_class_status_content($atts)
-    {
-        // Get dashboard status data
         $tasks = $this->get_dashboard_tasks($atts);
 
         if (empty($tasks) && $atts['show_completed'] === 'false') {
-            return '<div class="wecoza-no-tasks"><p>No pending tasks found.</p></div>';
+            ob_start();
+            echo $this->render_manual_sync_button($container_id, 'top');
+            ?>
+            <div class="alert alert-subtle-info border border-subtle">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fs-5">😊</span>
+                    <div>
+                        <h6 class="mb-1 text-body-emphasis">No pending tasks</h6>
+                        <p class="mb-0 text-body-secondary">All class setup tasks are up to date. Use the sync button if you expect new activity.</p>
+                    </div>
+                </div>
+            </div>
+            <?php
+            echo $this->render_manual_sync_button($container_id, 'bottom');
+            return ob_get_clean();
         }
+
+        $filters = $this->build_task_filters($tasks);
 
         ob_start();
 
-        foreach ($tasks as $task) {
-            $status_class = $task->task_status === 'open' ? 'open-task' : 'informed';
-            $overdue_class = $this->is_task_overdue($task) ? 'overdue' : '';
-            ?>
-            <div class="wecoza-status-tile <?php echo esc_attr($status_class . ' ' . $overdue_class); ?>"
-                 data-class-id="<?php echo esc_attr($task->class_id); ?>"
-                 data-task="<?php echo esc_attr($task->task_type); ?>">
+        $view_path = WECOZA_NOTIFICATIONS_PLUGIN_DIR . 'app/Controllers/class-status-table-view.php';
 
-                <div class="wecoza-tile-header">
-                    <span class="wecoza-task-icon"><?php echo $this->get_task_icon($task->task_type); ?></span>
-                    <h4><?php echo esc_html($this->get_task_title($task->task_type)); ?></h4>
-                    <span class="wecoza-status-badge <?php echo esc_attr($task->task_status); ?>">
-                        <?php echo $task->task_status === 'open' ? '⬜ Open Task' : '✅ Informed'; ?>
-                    </span>
-                </div>
-
-                <div class="wecoza-tile-content">
-                    <h5><?php echo esc_html($this->get_class_name($task->class_id)); ?></h5>
-                    <p><?php echo esc_html($this->get_task_description($task->task_type)); ?></p>
-
-                    <?php if ($task->due_date): ?>
-                        <p class="wecoza-due-date <?php echo $this->is_task_overdue($task) ? 'overdue' : ''; ?>">
-                            Due: <?php echo date('M j, Y', strtotime($task->due_date)); ?>
-                            <?php if ($this->is_task_overdue($task)): ?>
-                                (<?php echo $this->get_overdue_days($task); ?> days overdue)
-                            <?php endif; ?>
-                        </p>
-                    <?php endif; ?>
-                </div>
-
-                <?php if ($task->task_status === 'open'): ?>
-                <div class="wecoza-tile-actions">
-                    <button class="btn btn-primary wecoza-complete-task"
-                            data-class-id="<?php echo esc_attr($task->class_id); ?>"
-                            data-task="<?php echo esc_attr($task->task_type); ?>">
-                        Mark Complete
-                    </button>
-                    <a href="<?php echo esc_url($this->get_task_url($task)); ?>" class="btn btn-secondary">
-                        <?php echo esc_html($this->get_task_action_text($task->task_type)); ?>
-                    </a>
-                </div>
-                <?php endif; ?>
-            </div>
-            <?php
+        if (!file_exists($view_path)) {
+            return '<div class="wecoza-error">' . esc_html__('Class status view not found.', 'wecoza-notifications') . '</div>';
         }
 
+        $filters = apply_filters('wecoza_class_status_filters', $filters, $tasks, $atts);
+        $tasks = apply_filters('wecoza_class_status_tasks', $tasks, $atts);
+
+        $controller = $this; // provide controller context inside the view
+
+        ob_start();
+        include $view_path;
         return ob_get_clean();
     }
 
@@ -357,7 +324,19 @@ class ShortcodeController
 
     private function get_dashboard_tasks($atts)
     {
-        $sql = "SELECT * FROM {$this->db->get_table('dashboard_status')} WHERE 1=1";
+        $table = $this->db->get_table('dashboard_status');
+        $sql = "SELECT ds.*, 
+                       c.class_code, 
+                       c.class_type, 
+                       c.project_supervisor_id, 
+                       c.client_id, 
+                       c.site_id, 
+                       c.delivery_date,
+                       c.created_at AS class_created_at,
+                       c.updated_at AS class_updated_at
+                FROM {$table} ds
+                LEFT JOIN public.classes c ON ds.class_id = c.class_id
+                WHERE 1=1";
         $params = array();
 
         $param_count = 1;
@@ -377,11 +356,253 @@ class ShortcodeController
             $params[] = 'open';
         }
 
-        $sql .= " ORDER BY " . ($atts['sort'] === 'due_date' ? 'due_date ASC' : 'created_at DESC');
+        $sql .= " ORDER BY " . ($atts['sort'] === 'due_date' ? 'ds.due_date ASC' : 'ds.created_at DESC');
         $sql .= " LIMIT $" . $param_count++;
         $params[] = intval($atts['limit']);
 
         return $this->db->get_results($sql, $params);
+    }
+
+    /**
+     * Build filter list for task types present in result set
+     */
+    private function build_task_filters($tasks)
+    {
+        $filters = array('all' => __('All Tasks', 'wecoza-notifications'));
+
+        foreach ($tasks as $task) {
+            if (empty($task->task_type)) {
+                continue;
+            }
+
+            if (!isset($filters[$task->task_type])) {
+                $filters[$task->task_type] = $this->get_task_title($task->task_type);
+            }
+        }
+
+        return $filters;
+    }
+
+    /**
+     * Render a table row for a dashboard task entry
+     */
+    private function render_task_table_row($task)
+    {
+        $metadata = $this->extract_task_metadata($task);
+        $task_type = isset($task->task_type) ? $task->task_type : '';
+        $task_label = $this->get_task_title($task_type);
+        $task_icon = $this->get_task_icon($task_type);
+        $task_description = $this->get_task_description($task_type);
+
+        $class_label = !empty($metadata['class_code'])
+            ? $metadata['class_code']
+            : (!empty($task->class_code) ? $task->class_code : $this->get_class_name($task->class_id));
+
+        if (empty($class_label)) {
+            $class_label = sprintf(__('Class #%d', 'wecoza-notifications'), intval($task->class_id));
+        }
+
+        $class_type = !empty($metadata['class_type']) ? $metadata['class_type'] : (!empty($task->class_type) ? $task->class_type : '');
+        $client_id = !empty($metadata['client_id']) ? intval($metadata['client_id']) : (!empty($task->client_id) ? intval($task->client_id) : 0);
+
+        $supervisor_name = $this->resolve_supervisor_name($task, $metadata);
+        $due_markup = $this->format_due_date_display($task);
+        $status_badge = $this->render_status_badge($task);
+
+        $row_classes = array('wecoza-task-row');
+        $row_attributes = sprintf(
+            'class="%s" data-task-type="%s" data-overdue="%s"',
+            esc_attr(implode(' ', $row_classes)),
+            esc_attr($task_type),
+            $this->is_task_overdue($task) ? '1' : '0'
+        );
+
+        ob_start();
+        ?>
+        <tr <?php echo $row_attributes; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+        >
+            <td class="py-2 ps-3 align-middle white-space-nowrap">
+                <div class="d-flex align-items-center gap-2" title="<?php echo esc_attr($task_description); ?>">
+                    <span class="fs-7 lh-1 wecoza-task-icon-holder"><?php echo $task_icon; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+                    <span class="fw-semibold text-body"> <?php echo esc_html($task_label); ?></span>
+                </div>
+            </td>
+            <td class="py-2 align-middle white-space-nowrap">
+                <a href="<?php echo esc_url($this->get_task_url($task)); ?>" class="fw-semibold text-body text-decoration-none">
+                    <?php echo esc_html($class_label); ?>
+                </a>
+                <?php if (!empty($class_type)): ?>
+                    <div class="text-body-tertiary fs-10 text-uppercase mt-1"><?php echo esc_html($class_type); ?></div>
+                <?php endif; ?>
+            </td>
+            <td class="py-2 align-middle white-space-nowrap">
+                <span class="text-body fw-medium"><?php echo esc_html($supervisor_name); ?></span>
+                <?php if ($client_id > 0): ?>
+                    <div class="text-body-tertiary fs-10"><?php printf(esc_html__('Client #%d', 'wecoza-notifications'), $client_id); ?></div>
+                <?php endif; ?>
+            </td>
+            <td class="py-2 align-middle white-space-nowrap">
+                <?php echo $due_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            </td>
+            <td class="py-2 align-middle text-center fs-8 white-space-nowrap">
+                <?php echo $status_badge; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            </td>
+            <td class="py-2 align-middle text-end white-space-nowrap pe-3">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Task actions">
+                    <?php if (isset($task->task_status) && $task->task_status === 'open'): ?>
+                        <button type="button"
+                                class="btn btn-subtle-success wecoza-complete-task"
+                                data-class-id="<?php echo esc_attr($task->class_id); ?>"
+                                data-task="<?php echo esc_attr($task_type); ?>">
+                            <?php esc_html_e('Complete', 'wecoza-notifications'); ?>
+                        </button>
+                    <?php endif; ?>
+                    <a class="btn btn-subtle-secondary"
+                       href="<?php echo esc_url($this->get_task_url($task)); ?>">
+                        <?php esc_html_e('Open', 'wecoza-notifications'); ?>
+                    </a>
+                </div>
+            </td>
+        </tr>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * Decode task metadata and merge with joined fields
+     */
+    private function extract_task_metadata($task)
+    {
+        $metadata = array();
+
+        if (!empty($task->completion_data)) {
+            $decoded = json_decode($task->completion_data, true);
+            if (is_array($decoded)) {
+                $metadata = array_merge($metadata, $decoded);
+            }
+        }
+
+        if (!empty($task->class_code) && empty($metadata['class_code'])) {
+            $metadata['class_code'] = $task->class_code;
+        }
+
+        if (!empty($task->class_type) && empty($metadata['class_type'])) {
+            $metadata['class_type'] = $task->class_type;
+        }
+
+        if (!empty($task->client_id) && empty($metadata['client_id'])) {
+            $metadata['client_id'] = $task->client_id;
+        }
+
+        if (!empty($task->project_supervisor_id) && empty($metadata['responsible_user_id'])) {
+            $metadata['responsible_user_id'] = $task->project_supervisor_id;
+        }
+
+        if (!empty($task->class_created_at) && empty($metadata['class_created_at'])) {
+            $metadata['class_created_at'] = $task->class_created_at;
+        }
+
+        if (!empty($task->class_updated_at) && empty($metadata['class_updated_at'])) {
+            $metadata['class_updated_at'] = $task->class_updated_at;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * Resolve supervisor display name
+     */
+    private function resolve_supervisor_name($task, $metadata)
+    {
+        $candidate_ids = array();
+
+        if (!empty($task->responsible_user_id)) {
+            $candidate_ids[] = intval($task->responsible_user_id);
+        }
+
+        if (!empty($metadata['responsible_user_id'])) {
+            $candidate_ids[] = intval($metadata['responsible_user_id']);
+        }
+
+        if (!empty($task->project_supervisor_id)) {
+            $candidate_ids[] = intval($task->project_supervisor_id);
+        }
+
+        foreach ($candidate_ids as $user_id) {
+            if ($user_id <= 0) {
+                continue;
+            }
+            $user = get_userdata($user_id);
+            if ($user && $user->display_name) {
+                return $user->display_name;
+            }
+        }
+
+        return __('Unassigned', 'wecoza-notifications');
+    }
+
+    /**
+     * Format due date markup with relative feedback
+     */
+    private function format_due_date_display($task)
+    {
+        if (empty($task->due_date)) {
+            return '<span class="text-body-tertiary">' . esc_html__('Not set', 'wecoza-notifications') . '</span>';
+        }
+
+        $timestamp = strtotime($task->due_date);
+        if (!$timestamp) {
+            return '<span class="text-body-tertiary">' . esc_html__('Not set', 'wecoza-notifications') . '</span>';
+        }
+
+        $formatted = esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $timestamp));
+        $now = current_time('timestamp');
+        $is_overdue = $this->is_task_overdue($task);
+
+        $relative = human_time_diff($is_overdue ? $timestamp : $now, $is_overdue ? $now : $timestamp);
+        $relative_text = $is_overdue
+            ? sprintf(esc_html__('Overdue by %s', 'wecoza-notifications'), $relative)
+            : sprintf(esc_html__('Due in %s', 'wecoza-notifications'), $relative);
+
+        $badge = '';
+        if ($is_overdue) {
+            $badge = '<span class="badge bg-subtle-danger text-danger-emphasis ms-2">' . esc_html__('Overdue', 'wecoza-notifications') . '</span>';
+        }
+
+        $html  = '<div class="d-flex align-items-center text-body-emphasis fw-semibold">' . $formatted . $badge . '</div>';
+        $html .= '<div class="text-body-tertiary fs-10">' . esc_html($relative_text) . '</div>';
+
+        return $html;
+    }
+
+    /**
+     * Render status badge markup
+     */
+    private function render_status_badge($task)
+    {
+        $status = isset($task->task_status) ? strtolower($task->task_status) : '';
+        if (empty($status)) {
+            $status = 'unknown';
+        }
+
+        $map = array(
+            'open' => array('label' => __('Open', 'wecoza-notifications'), 'class' => 'bg-subtle-warning text-warning-emphasis'),
+            'pending' => array('label' => __('Pending', 'wecoza-notifications'), 'class' => 'bg-subtle-warning text-warning-emphasis'),
+            'informed' => array('label' => __('Informed', 'wecoza-notifications'), 'class' => 'bg-subtle-success text-success-emphasis'),
+            'completed' => array('label' => __('Completed', 'wecoza-notifications'), 'class' => 'bg-subtle-success text-success-emphasis'),
+            'unknown' => array('label' => __('Unknown', 'wecoza-notifications'), 'class' => 'bg-subtle-secondary text-body-secondary'),
+        );
+
+        if (!isset($map[$status])) {
+            $map[$status] = array(
+                'label' => ucfirst($status),
+                'class' => 'bg-subtle-secondary text-body-secondary'
+            );
+        }
+
+        $config = $map[$status];
+
+        return '<span class="badge ' . esc_attr($config['class']) . '">' . esc_html($config['label']) . '</span>';
     }
 
     private function get_user_pending_tasks($user_id, $atts)
@@ -438,14 +659,14 @@ class ShortcodeController
     private function get_task_icon($task_type)
     {
         $icons = array(
-            'load_learners' => '👥',
-            'agent_order' => '👨‍🏫',
-            'training_schedule' => '📅',
-            'material_delivery' => '📦',
-            'agent_paperwork' => '📄'
+            'load_learners' => '<i class="bi bi-people"></i>',
+            'agent_order' => '<i class="bi bi-person-check"></i>',
+            'training_schedule' => '<i class="bi bi-calendar-week"></i>',
+            'material_delivery' => '<i class="bi bi-box-seam"></i>',
+            'agent_paperwork' => '<i class="bi bi-file-earmark-check"></i>'
         );
 
-        return $icons[$task_type] ?? '📋';
+        return $icons[$task_type] ?? '<i class="bi bi-clipboard-check"></i>';
     }
 
     private function get_task_action_text($task_type)

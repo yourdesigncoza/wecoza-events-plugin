@@ -68,7 +68,6 @@ Displays an overview of all tasks for specific classes.
 - `client_id` - Filter by client ID (optional)
 - `user_id` - Filter by user ID ('current' or user ID, default: 'current')
 - `status` - Task status filter ('all', 'open', 'completed', default: 'all')
-- `view` - Display style ('grid', 'list', default: 'grid')
 - `show_completed` - Show completed tasks ('true'/'false', default: 'false')
 - `limit` - Maximum number of items (default: '10')
 - `sort` - Sort order ('due_date', 'status', 'class', default: 'due_date')
@@ -76,7 +75,7 @@ Displays an overview of all tasks for specific classes.
 
 **Example:**
 ```
-[wecoza_class_status view="grid" status="open" limit="5"]
+[wecoza_class_status status="open" limit="5"]
 ```
 
 ### 2. Pending Tasks
