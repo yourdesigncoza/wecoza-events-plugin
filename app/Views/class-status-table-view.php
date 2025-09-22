@@ -64,32 +64,58 @@ if ($can_sync) {
                     </div>
                         <!-- Summary strip -->
                   <div class="col-12">
-                    <div class="scrollbar">
-                      <div class="row g-0 flex-nowrap">
-                        <div class="col-auto border-end pe-4">
-                          <h6 class="text-body-tertiary">Total Classes : 41 <div class="badge badge-phoenix fs-10 badge-phoenix-success">+ 11</div></h6>
+                    <?php if (!empty($summary_stats)): ?>
+                        <div class="scrollbar">
+                          <?php $summary_count = count($summary_stats); ?>
+                          <div class="d-flex flex-nowrap align-items-center gap-4">
+                            <?php foreach ($summary_stats as $index => $stat): ?>
+                              <div class="d-flex align-items-center gap-2<?php echo $index < $summary_count - 1 ? ' border-end pe-4' : ''; ?>">
+                                <div>
+                                  <h6 class="text-body mb-0">
+                                    <?php echo esc_html($stat['label']); ?> :
+                                    <span class="fw-semibold"><?php echo esc_html($stat['value_formatted']); ?></span>
+                                  </h6>
+                                  <?php if (!empty($stat['description'])): ?>
+                                    <div class="text-body-tertiary fs-10">
+                                      <?php echo esc_html($stat['description']); ?>
+                                    </div>
+                                  <?php endif; ?>
+                                </div>
+                                <div class="badge badge-phoenix fs-10 <?php
+                                    if ($stat['delta_type'] === 'positive') {
+                                        echo 'badge-phoenix-success';
+                                    } elseif ($stat['delta_type'] === 'negative') {
+                                        echo 'badge-phoenix-danger';
+                                    } else {
+                                        echo 'badge-phoenix-secondary';
+                                    }
+                                ?>">
+                                  <?php echo esc_html($stat['delta_formatted']); ?>
+                                </div>
+                              </div>
+                            <?php endforeach; ?>
+                          </div>
                         </div>
-                        <div class="col-auto px-4 border-end">
-                          <h6 class="text-body-tertiary">Active Classes : 33</h6>
+                    <?php else: ?>
+                        <div class="alert alert-subtle-info mb-0" role="status">
+                            <?php esc_html_e('Dashboard metrics will appear after the next sync.', 'wecoza-notifications'); ?>
                         </div>
-                        <div class="col-auto px-4 border-end">
-                          <h6 class="text-body-tertiary">SETA Funded : 37 <div class="badge badge-phoenix fs-10 badge-phoenix-success">+ 5</div></h6>
-                        </div>
-                        <div class="col-auto px-4 border-end">
-                          <h6 class="text-body-tertiary">Exam Classes : 32 <div class="badge badge-phoenix fs-10 badge-phoenix-danger">+ 8</div></h6>
-                        </div>
-                        <div class="col-auto px-4">
-                          <h6 class="text-body-tertiary">Unique Clients : 12 <div class="badge badge-phoenix fs-10 badge-phoenix-success">- 2</div></h6>
-                        </div>
-                      </div>
-                    </div>
+                    <?php endif; ?>
                   </div>
                 </div>
 
 
 
 <div class="table-list" id="wecoza-class-status-table">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1 mt-3 ms-5">
+    <div class="wecoza-sync-alerts px-4 py-2">
+        <div class="d-none alert alert-subtle-success wecoza-sync-alert-success py-2 my-0 mt-3 mx-5" role="alert">
+            <?php esc_html_e('Dashboard data synced successfully.', 'wecoza-notifications'); ?>
+        </div>
+        <div class="d-none alert alert-subtle-danger wecoza-sync-alert-error py-2 my-0 mt-3 mx-5" role="alert">
+            <?php esc_html_e('Failed to sync dashboard data.', 'wecoza-notifications'); ?>
+        </div>
+    </div>
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1 mt-1 ms-5">
         <?php if (!empty($filters)): ?>
             <div class="btn-group btn-group-sm wecoza-task-filter-group" role="group" aria-label="<?php esc_attr_e('Filter tasks', 'wecoza-notifications'); ?>">
                 <?php foreach ($filters as $filter_key => $filter_label): ?>
@@ -127,6 +153,23 @@ if ($can_sync) {
             </tbody>
         </table>
         </div>
+        <!-- Footer Pagination -->
+        <div class="d-flex justify-content-between mt-3"><span class="d-none d-sm-inline-block" data-list-info="data-list-info"></span>
+            <div class="d-flex"><button class="page-link" data-list-pagination="prev"><span class="fas fa-chevron-left"></span></button>
+            <ul class="mb-0 pagination"></ul><button class="page-link pe-0" data-list-pagination="next"><span class="fas fa-chevron-right"></span></button>
+            </div>
+        </div>
+
+
+        <!-- Example Pagination HTML -->
+         <div class="d-flex justify-content-between mt-3"><span class="d-none d-sm-inline-block" data-list-info="data-list-info">1 to 5 <span class="text-body-tertiary"> Items of </span>43</span>
+                          <div class="d-flex"><button class="page-link disabled" data-list-pagination="prev" disabled=""><svg class="svg-inline--fa fa-chevron-left" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="chevron-left" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" data-fa-i2svg=""><path fill="currentColor" d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l192 192c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 246.6 86.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-192 192z"></path></svg><!-- <span class="fas fa-chevron-left"></span> Font Awesome fontawesome.com --></button>
+                            <ul class="mb-0 pagination"><li class="active"><button class="page" type="button" data-i="1" data-page="5">1</button></li><li><button class="page" type="button" data-i="2" data-page="5">2</button></li><li><button class="page" type="button" data-i="3" data-page="5">3</button></li><li class="disabled"><button class="page" type="button">...</button></li></ul><button class="page-link pe-0" data-list-pagination="next"><svg class="svg-inline--fa fa-chevron-right" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="chevron-right" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" data-fa-i2svg=""><path fill="currentColor" d="M310.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-192 192c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L242.7 256 73.4 86.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l192 192z"></path></svg><!-- <span class="fas fa-chevron-right"></span> Font Awesome fontawesome.com --></button>
+                          </div>
+                        </div>
+
+
+
     </div>
 </div>
 </div>

@@ -169,7 +169,7 @@ class ShortcodeController
 
         ob_start();
 
-        $view_path = WECOZA_NOTIFICATIONS_PLUGIN_DIR . 'app/Controllers/class-status-table-view.php';
+        $view_path = WECOZA_NOTIFICATIONS_PLUGIN_DIR . 'app/Views/class-status-table-view.php';
 
         if (!file_exists($view_path)) {
             return '<div class="wecoza-error">' . esc_html__('Class status view not found.', 'wecoza-notifications') . '</div>';
@@ -177,6 +177,7 @@ class ShortcodeController
 
         $filters = apply_filters('wecoza_class_status_filters', $filters, $tasks, $atts);
         $tasks = apply_filters('wecoza_class_status_tasks', $tasks, $atts);
+        $summary_stats = $this->build_class_status_summary($tasks);
 
         $controller = $this; // provide controller context inside the view
 
@@ -381,6 +382,288 @@ class ShortcodeController
         }
 
         return $filters;
+    }
+
+    /**
+     * Build summary statistics for the class status dashboard strip.
+     *
+     * @param array $tasks
+     * @return array<int, array<string, mixed>>
+     */
+    private function build_class_status_summary($tasks)
+    {
+        $parse_timestamp = static function($value) {
+            if ($value instanceof \DateTimeInterface) {
+                return $value->getTimestamp();
+            }
+
+            if (is_numeric($value)) {
+                return (int) $value;
+            }
+
+            if (is_string($value) && $value !== '') {
+                $timestamp = strtotime($value);
+                if ($timestamp !== false) {
+                    return $timestamp;
+                }
+            }
+
+            return 0;
+        };
+
+        $normalize_bool = static function($value) {
+            if (is_bool($value)) {
+                return $value;
+            }
+
+            if (is_numeric($value)) {
+                return (int) $value === 1;
+            }
+
+            if (is_string($value)) {
+                $value = strtolower($value);
+                return in_array($value, array('1', 'true', 't', 'yes', 'y'), true);
+            }
+
+            return false;
+        };
+
+        $classes = array();
+        $client_summary = array();
+
+        $now = current_time('timestamp');
+        $week_ago = strtotime('-7 days', $now);
+        $two_weeks_ago = strtotime('-14 days', $now);
+
+        foreach ($tasks as $task) {
+            $class_id = isset($task->class_id) ? (int) $task->class_id : 0;
+            if ($class_id <= 0) {
+                continue;
+            }
+
+            if (!isset($classes[$class_id])) {
+                $created_at = $parse_timestamp(!empty($task->class_created_at) ? $task->class_created_at : (isset($task->created_at) ? $task->created_at : null));
+                $updated_at = $parse_timestamp(!empty($task->class_updated_at) ? $task->class_updated_at : (isset($task->updated_at) ? $task->updated_at : null));
+                $class_type = isset($task->class_type) ? (string) $task->class_type : '';
+                $client_id = isset($task->client_id) ? (int) $task->client_id : 0;
+
+                $classes[$class_id] = array(
+                    'created_at' => $created_at,
+                    'updated_at' => $updated_at,
+                    'seta_funded' => isset($task->seta_funded) ? $normalize_bool($task->seta_funded) : false,
+                    'class_type' => $class_type,
+                    'client_id' => $client_id,
+                    'has_open_task' => false,
+                );
+
+                if ($client_id > 0) {
+                    if (!isset($client_summary[$client_id])) {
+                        $client_summary[$client_id] = array(
+                            'first_created' => $created_at,
+                        );
+                    } else {
+                        $client_summary[$client_id]['first_created'] = min(
+                            $client_summary[$client_id]['first_created'],
+                            $created_at
+                        );
+                    }
+                }
+            }
+
+            if (!empty($task->task_status) && $task->task_status === 'open') {
+                $classes[$class_id]['has_open_task'] = true;
+            }
+        }
+
+        if (empty($classes)) {
+            $metrics = array('total_classes', 'active_classes', 'seta_funded', 'exam_classes', 'unique_clients');
+            $summary = array();
+            foreach ($metrics as $metric) {
+                $summary[] = array(
+                    'key' => $metric,
+                    'label' => $this->get_class_summary_label($metric),
+                    'value' => 0,
+                    'value_formatted' => number_format_i18n(0),
+                    'delta' => 0,
+                    'delta_formatted' => '0',
+                    'delta_type' => 'neutral',
+                    'description' => __('Sync dashboard data to populate this stat.', 'wecoza-notifications'),
+                );
+            }
+
+            return $summary;
+        }
+
+        $total_classes = count($classes);
+        $recent_classes = 0;
+        $previous_classes = 0;
+
+        $active_classes = 0;
+        $recent_active = 0;
+        $previous_active = 0;
+
+        $seta_classes = 0;
+        $recent_seta = 0;
+        $previous_seta = 0;
+
+        $exam_classes = 0;
+        $recent_exam = 0;
+        $previous_exam = 0;
+
+        foreach ($classes as $class) {
+            $created_at = $class['created_at'];
+            $updated_at = $class['updated_at'];
+            $is_exam = $class['class_type'] !== '' && stripos($class['class_type'], 'exam') !== false;
+
+            if ($created_at >= $week_ago) {
+                $recent_classes++;
+            } elseif ($created_at >= $two_weeks_ago && $created_at < $week_ago) {
+                $previous_classes++;
+            }
+
+            if ($class['has_open_task']) {
+                $active_classes++;
+
+                if ($updated_at >= $week_ago) {
+                    $recent_active++;
+                } elseif ($updated_at >= $two_weeks_ago && $updated_at < $week_ago) {
+                    $previous_active++;
+                }
+            }
+
+            if ($class['seta_funded']) {
+                $seta_classes++;
+
+                if ($created_at >= $week_ago) {
+                    $recent_seta++;
+                } elseif ($created_at >= $two_weeks_ago && $created_at < $week_ago) {
+                    $previous_seta++;
+                }
+            }
+
+            if ($is_exam) {
+                $exam_classes++;
+
+                if ($created_at >= $week_ago) {
+                    $recent_exam++;
+                } elseif ($created_at >= $two_weeks_ago && $created_at < $week_ago) {
+                    $previous_exam++;
+                }
+            }
+        }
+
+        $unique_clients = count($client_summary);
+        $recent_clients = 0;
+        $previous_clients = 0;
+
+        foreach ($client_summary as $client) {
+            $first_created = isset($client['first_created']) ? (int) $client['first_created'] : 0;
+
+            if ($first_created >= $week_ago) {
+                $recent_clients++;
+            } elseif ($first_created >= $two_weeks_ago && $first_created < $week_ago) {
+                $previous_clients++;
+            }
+        }
+
+        $summary = array(
+            array(
+                'key' => 'total_classes',
+                'label' => $this->get_class_summary_label('total_classes'),
+                'value' => $total_classes,
+                'value_formatted' => number_format_i18n($total_classes),
+                'delta' => $recent_classes - $previous_classes,
+                'description' => sprintf(
+                    /* translators: %d: number of new classes this week */
+                    __('%d new classes in the past week.', 'wecoza-notifications'),
+                    max($recent_classes, 0)
+                ),
+            ),
+            array(
+                'key' => 'active_classes',
+                'label' => $this->get_class_summary_label('active_classes'),
+                'value' => $active_classes,
+                'value_formatted' => number_format_i18n($active_classes),
+                'delta' => $recent_active - $previous_active,
+                'description' => sprintf(
+                    /* translators: %d: number of recently updated classes */
+                    __('%d classes updated in the past week.', 'wecoza-notifications'),
+                    max($recent_active, 0)
+                ),
+            ),
+            array(
+                'key' => 'seta_funded',
+                'label' => $this->get_class_summary_label('seta_funded'),
+                'value' => $seta_classes,
+                'value_formatted' => number_format_i18n($seta_classes),
+                'delta' => $recent_seta - $previous_seta,
+                'description' => sprintf(
+                    /* translators: %d: number of SETA funded classes */
+                    __('%d funded classes started this week.', 'wecoza-notifications'),
+                    max($recent_seta, 0)
+                ),
+            ),
+            array(
+                'key' => 'exam_classes',
+                'label' => $this->get_class_summary_label('exam_classes'),
+                'value' => $exam_classes,
+                'value_formatted' => number_format_i18n($exam_classes),
+                'delta' => $recent_exam - $previous_exam,
+                'description' => sprintf(
+                    /* translators: %d: number of exam classes */
+                    __('%d new exam cohorts scheduled this week.', 'wecoza-notifications'),
+                    max($recent_exam, 0)
+                ),
+            ),
+            array(
+                'key' => 'unique_clients',
+                'label' => $this->get_class_summary_label('unique_clients'),
+                'value' => $unique_clients,
+                'value_formatted' => number_format_i18n($unique_clients),
+                'delta' => $recent_clients - $previous_clients,
+                'description' => sprintf(
+                    /* translators: %d: number of new clients */
+                    __('%d new client engagements in the past week.', 'wecoza-notifications'),
+                    max($recent_clients, 0)
+                ),
+            ),
+        );
+
+        foreach ($summary as &$stat) {
+            $delta = isset($stat['delta']) ? (int) $stat['delta'] : 0;
+            if ($delta > 0) {
+                $stat['delta_type'] = 'positive';
+                $stat['delta_formatted'] = '+ ' . number_format_i18n($delta);
+            } elseif ($delta < 0) {
+                $stat['delta_type'] = 'negative';
+                $stat['delta_formatted'] = '- ' . number_format_i18n(abs($delta));
+            } else {
+                $stat['delta_type'] = 'neutral';
+                $stat['delta_formatted'] = '0';
+            }
+        }
+        unset($stat);
+
+        return $summary;
+    }
+
+    /**
+     * Resolve localized label for dashboard summary metric key.
+     *
+     * @param string $key
+     * @return string
+     */
+    private function get_class_summary_label($key)
+    {
+        $labels = array(
+            'total_classes' => __('Total Classes', 'wecoza-notifications'),
+            'active_classes' => __('Active Classes', 'wecoza-notifications'),
+            'seta_funded' => __('SETA Funded', 'wecoza-notifications'),
+            'exam_classes' => __('Exam Classes', 'wecoza-notifications'),
+            'unique_clients' => __('Unique Clients', 'wecoza-notifications'),
+        );
+
+        return isset($labels[$key]) ? $labels[$key] : $key;
     }
 
     /**

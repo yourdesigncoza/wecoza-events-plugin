@@ -25,7 +25,7 @@
         init: function() {
             this.findAndRegisterShortcodes();
             this.bindEvents();
-            this.startPolling();
+            // this.startPolling();
 
         },
 
@@ -110,32 +110,32 @@
         /**
          * Start polling for updates
          */
-        startPolling: function() {
-            var self = this;
+        // startPolling: function() {
+        //     var self = this;
 
-            if (this.intervalId) {
-                clearInterval(this.intervalId);
-            }
+        //     if (this.intervalId) {
+        //         clearInterval(this.intervalId);
+        //     }
 
-            this.intervalId = setInterval(function() {
-                self.pollForUpdates();
-            }, this.pollInterval);
-        },
+        //     this.intervalId = setInterval(function() {
+        //         self.pollForUpdates();
+        //     }, this.pollInterval);
+        // },
 
         /**
          * Poll for updates on all shortcodes
          */
-        pollForUpdates: function() {
-            var self = this;
+        // pollForUpdates: function() {
+        //     var self = this;
 
-            this.instances.forEach(function(instance, id) {
-                var timeSinceUpdate = Date.now() - instance.lastUpdated;
+        //     this.instances.forEach(function(instance, id) {
+        //         var timeSinceUpdate = Date.now() - instance.lastUpdated;
 
-                if (timeSinceUpdate >= instance.refreshInterval) {
-                    self.refreshShortcode(id);
-                }
-            });
-        },
+        //         if (timeSinceUpdate >= instance.refreshInterval) {
+        //             self.refreshShortcode(id);
+        //         }
+        //     });
+        // },
 
         /**
          * Refresh a specific shortcode
@@ -517,6 +517,13 @@
 })(jQuery);
 
 window.syncClassData = function(containerId) {
+    var $ = window.jQuery;
+
+    if (!$) {
+        console.error('syncClassData requires jQuery.');
+        return;
+    }
+
     if (!window.wecozaShortcodeManager) {
         return;
     }
@@ -531,6 +538,29 @@ window.syncClassData = function(containerId) {
     var $button = $container.find('.wecoza-class-status-sync-btn');
     var originalLabel = $button.length ? $button.html() : '';
 
+    var hideAlerts = function(context) {
+        (context || $container)
+            .find('.wecoza-sync-alert-success, .wecoza-sync-alert-error')
+            .addClass('d-none');
+    };
+
+    var showAlert = function(type, message, context) {
+        var $context = context || $container;
+        var selector = type === 'success' ? '.wecoza-sync-alert-success' : '.wecoza-sync-alert-error';
+        var $target = $context.find(selector);
+
+        hideAlerts($context);
+
+        if ($target.length) {
+            $target.removeClass('d-none').text(message);
+        } else {
+            var level = type === 'success' ? 'success' : 'error';
+            manager.showMessage(message, level);
+        }
+    };
+
+    hideAlerts($container);
+
     if ($button.length) {
         $button.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
     }
@@ -544,11 +574,16 @@ window.syncClassData = function(containerId) {
         },
         success: function(response) {
             if (response.success) {
-                manager.showMessage('Dashboard data synced successfully.', 'success');
+                var successMessage = (response.data && response.data.message) ? response.data.message : 'Dashboard data synced successfully.';
+
+                $container.one('wecoza:shortcode-updated', function() {
+                    showAlert('success', successMessage, $container);
+                });
+
                 manager.refreshShortcode(containerId);
             } else {
                 var message = (response.data && response.data.message) ? response.data.message : 'Failed to sync dashboard data.';
-                manager.showMessage(message, 'error');
+                showAlert('error', message, $container);
             }
         },
         error: function(xhr) {
@@ -556,7 +591,7 @@ window.syncClassData = function(containerId) {
             if (xhr && xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
                 message = xhr.responseJSON.data.message;
             }
-            manager.showMessage(message, 'error');
+            showAlert('error', message, $container);
         },
         complete: function() {
             if ($button.length) {
@@ -567,6 +602,13 @@ window.syncClassData = function(containerId) {
 };
 
 window.exportClassStatus = function(containerId) {
+    var $ = window.jQuery;
+
+    if (!$) {
+        console.error('exportClassStatus requires jQuery.');
+        return;
+    }
+
     if (!window.wecozaShortcodeManager) {
         return;
     }
