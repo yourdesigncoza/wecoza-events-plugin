@@ -6,6 +6,8 @@
 (function($) {
     'use strict';
 
+    var CLASS_STATUS_PAGE_SIZE = 50;
+
     /**
      * WECOZA Shortcode Manager Class
      */
@@ -27,6 +29,315 @@
             this.bindEvents();
             // this.startPolling();
 
+        },
+
+        /**
+         * Initialize class status pagination and filtering for an instance
+         */
+        initializeClassStatusInstance: function(instance) {
+            if (!instance || instance.type !== 'class_status') {
+                return;
+            }
+
+            this.ensureClassStatusPagination(instance);
+            this.applyRowFilters(instance.$element, instance.currentFilter || 'all', instance.currentSearch || '', {resetPage: true});
+        },
+
+        /**
+         * Ensure class status pagination state and DOM references exist
+         */
+        ensureClassStatusPagination: function(instance) {
+            if (!instance || instance.type !== 'class_status') {
+                return;
+            }
+
+            if (!instance.pagination) {
+                instance.pagination = this.createClassStatusPaginationState();
+            }
+
+            var pagination = instance.pagination;
+            pagination.itemsPerPage = CLASS_STATUS_PAGE_SIZE;
+
+            var $container = instance.$element.find('[data-pagination-container]');
+            pagination.$container = $container;
+            pagination.$summary = $container.find('[data-pagination-summary]');
+            pagination.$pages = $container.find('[data-pagination-pages]');
+            pagination.$prev = $container.find('[data-pagination-action="prev"]');
+            pagination.$next = $container.find('[data-pagination-action="next"]');
+        },
+
+        /**
+         * Create default pagination state for class status table
+         */
+        createClassStatusPaginationState: function() {
+            return {
+                itemsPerPage: CLASS_STATUS_PAGE_SIZE,
+                currentPage: 1,
+                totalItems: 0,
+                totalPages: 1,
+                visibleRows: [],
+                $container: null,
+                $summary: null,
+                $pages: null,
+                $prev: null,
+                $next: null
+            };
+        },
+
+        /**
+         * Update pagination state values after filtering
+         */
+        updateClassStatusPaginationState: function(instance, matchedRows, resetPage) {
+            if (!instance || instance.type !== 'class_status' || !instance.pagination) {
+                return;
+            }
+
+            var pagination = instance.pagination;
+            pagination.visibleRows = matchedRows;
+            pagination.totalItems = matchedRows.length;
+            pagination.totalPages = Math.max(1, Math.ceil(pagination.totalItems / pagination.itemsPerPage));
+
+            if (pagination.totalItems === 0) {
+                pagination.currentPage = 1;
+                return;
+            }
+
+            if (resetPage) {
+                pagination.currentPage = 1;
+            } else if (pagination.currentPage > pagination.totalPages) {
+                pagination.currentPage = pagination.totalPages;
+            } else if (pagination.currentPage < 1) {
+                pagination.currentPage = 1;
+            }
+        },
+
+        /**
+         * Render pagination controls and visible rows
+         */
+        renderClassStatusPagination: function(instance) {
+            if (!instance || instance.type !== 'class_status' || !instance.pagination) {
+                return;
+            }
+
+            this.ensureClassStatusPagination(instance);
+
+            var pagination = instance.pagination;
+            if (!pagination.$container || pagination.$container.length === 0) {
+                this.updateClassStatusPaginationDisplay(instance);
+                return;
+            }
+
+            var totalItems = pagination.totalItems;
+            var currentPage = pagination.currentPage;
+            var itemsPerPage = pagination.itemsPerPage;
+            var startItem = totalItems === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
+            var endItem = totalItems === 0 ? 0 : Math.min(currentPage * itemsPerPage, totalItems);
+            var summaryHtml;
+
+            if (pagination.$summary && pagination.$summary.length) {
+                if (totalItems > 0) {
+                    summaryHtml = startItem + ' to ' + endItem + ' <span class="text-body-tertiary"> Items of </span>' + totalItems;
+                } else {
+                    summaryHtml = '0 <span class="text-body-tertiary"> Items of </span>0';
+                }
+                pagination.$summary.html(summaryHtml);
+            }
+
+            if (pagination.$pages && pagination.$pages.length) {
+                pagination.$pages.html(this.buildClassStatusPagesHtml(pagination));
+            }
+
+            this.updateClassStatusNavState(pagination);
+            this.bindClassStatusPaginationEvents(instance);
+            this.updateClassStatusPaginationDisplay(instance);
+        },
+
+        /**
+         * Build numeric pagination items markup
+         */
+        buildClassStatusPagesHtml: function(pagination) {
+            if (!pagination || pagination.totalPages <= 0) {
+                return '';
+            }
+
+            if (pagination.totalItems === 0) {
+                return '<li class="page-item active"><span class="page-link" aria-current="page">1</span></li>';
+            }
+
+            var pages = this.computeClassStatusPageSequence(pagination.totalPages, pagination.currentPage);
+            var html = '';
+
+            pages.forEach(function(page) {
+                if (page === 'ellipsis') {
+                    html += '<li class="page-item disabled"><span class="page-link">&hellip;</span></li>';
+                    return;
+                }
+
+                var isActive = page === pagination.currentPage;
+                html += '<li class="page-item' + (isActive ? ' active' : '') + '">';
+                if (isActive) {
+                    html += '<span class="page-link" aria-current="page">' + page + '</span>';
+                } else {
+                    html += '<button type="button" class="page-link" data-page-number="' + page + '">' + page + '</button>';
+                }
+                html += '</li>';
+            });
+
+            return html;
+        },
+
+        /**
+         * Determine which page numbers should be displayed
+         */
+        computeClassStatusPageSequence: function(totalPages, currentPage) {
+            var pages = [];
+
+            if (totalPages <= 5) {
+                for (var i = 1; i <= totalPages; i++) {
+                    pages.push(i);
+                }
+                return pages;
+            }
+
+            pages.push(1);
+
+            var start = Math.max(2, currentPage - 1);
+            var end = Math.min(totalPages - 1, currentPage + 1);
+
+            if (currentPage <= 3) {
+                start = 2;
+                end = 4;
+            } else if (currentPage >= totalPages - 2) {
+                start = totalPages - 3;
+                end = totalPages - 1;
+            }
+
+            if (start > 2) {
+                pages.push('ellipsis');
+            }
+
+            for (var page = start; page <= end; page++) {
+                if (page > 1 && page < totalPages) {
+                    pages.push(page);
+                }
+            }
+
+            if (end < totalPages - 1) {
+                pages.push('ellipsis');
+            }
+
+            pages.push(totalPages);
+
+            return pages;
+        },
+
+        /**
+         * Update disabled state for prev/next controls
+         */
+        updateClassStatusNavState: function(pagination) {
+            if (!pagination) {
+                return;
+            }
+
+            var prevDisabled = pagination.currentPage <= 1 || pagination.totalItems === 0;
+            var nextDisabled = pagination.currentPage >= pagination.totalPages || pagination.totalItems === 0;
+
+            if (pagination.$prev && pagination.$prev.length) {
+                pagination.$prev.prop('disabled', prevDisabled);
+                pagination.$prev.toggleClass('disabled', prevDisabled);
+                pagination.$prev.attr('aria-disabled', prevDisabled ? 'true' : 'false');
+            }
+
+            if (pagination.$next && pagination.$next.length) {
+                pagination.$next.prop('disabled', nextDisabled);
+                pagination.$next.toggleClass('disabled', nextDisabled);
+                pagination.$next.attr('aria-disabled', nextDisabled ? 'true' : 'false');
+            }
+        },
+
+        /**
+         * Attach pagination button handlers
+         */
+        bindClassStatusPaginationEvents: function(instance) {
+            if (!instance || instance.type !== 'class_status' || !instance.pagination) {
+                return;
+            }
+
+            var pagination = instance.pagination;
+            if (!pagination.$container || pagination.$container.length === 0) {
+                return;
+            }
+
+            var self = this;
+            pagination.$container.off('click.wecozaPagination');
+
+            pagination.$container.on('click.wecozaPagination', '[data-pagination-action="prev"]', function(e) {
+                e.preventDefault();
+                if ($(this).prop('disabled')) {
+                    return;
+                }
+                self.goToClassStatusPage(instance, pagination.currentPage - 1);
+            });
+
+            pagination.$container.on('click.wecozaPagination', '[data-pagination-action="next"]', function(e) {
+                e.preventDefault();
+                if ($(this).prop('disabled')) {
+                    return;
+                }
+                self.goToClassStatusPage(instance, pagination.currentPage + 1);
+            });
+
+            pagination.$container.on('click.wecozaPagination', '[data-page-number]', function(e) {
+                e.preventDefault();
+                var pageNumber = parseInt($(this).data('page-number'), 10);
+                if (!Number.isNaN(pageNumber)) {
+                    self.goToClassStatusPage(instance, pageNumber);
+                }
+            });
+        },
+
+        /**
+         * Navigate to a specific pagination page
+         */
+        goToClassStatusPage: function(instance, pageNumber) {
+            if (!instance || instance.type !== 'class_status' || !instance.pagination) {
+                return;
+            }
+
+            var pagination = instance.pagination;
+            if (pageNumber < 1 || pageNumber > pagination.totalPages || pageNumber === pagination.currentPage) {
+                return;
+            }
+
+            pagination.currentPage = pageNumber;
+            this.renderClassStatusPagination(instance);
+        },
+
+        /**
+         * Show only rows for the current page selection
+         */
+        updateClassStatusPaginationDisplay: function(instance) {
+            if (!instance || instance.type !== 'class_status' || !instance.pagination) {
+                return;
+            }
+
+            var pagination = instance.pagination;
+            var $rows = instance.$element.find('tbody tr.wecoza-task-row');
+            $rows.hide();
+
+            if (!pagination.visibleRows || pagination.visibleRows.length === 0) {
+                return;
+            }
+
+            var startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
+            var endIndex = Math.min(startIndex + pagination.itemsPerPage, pagination.visibleRows.length);
+
+            for (var i = startIndex; i < endIndex; i++) {
+                var row = pagination.visibleRows[i];
+                if (row) {
+                    $(row).show();
+                }
+            }
         },
 
         /**
@@ -53,6 +364,10 @@
                 };
 
                 self.instances.set(instance.id, instance);
+
+                if (shortcodeType === 'class_status') {
+                    self.initializeClassStatusInstance(instance);
+                }
 
             });
         },
@@ -99,9 +414,9 @@
                 if (instance) {
                     instance.currentSearch = query;
                     var currentFilter = instance.currentFilter || 'all';
-                    self.applyRowFilters($container, currentFilter, query);
+                    self.applyRowFilters($container, currentFilter, query, {resetPage: true});
                 } else {
-                    self.applyRowFilters($container, 'all', query);
+                    self.applyRowFilters($container, 'all', query, {resetPage: true});
                 }
             });
 
@@ -190,7 +505,8 @@
                             $searchInput.val(search);
                         }
 
-                        self.applyRowFilters(instance.$element, filter, search);
+                        self.ensureClassStatusPagination(instance);
+                        self.applyRowFilters(instance.$element, filter, search, {resetPage: false});
 
                     }
                 },
@@ -358,25 +674,44 @@
             if (instance) {
                 instance.currentFilter = filter;
                 var currentSearch = instance.currentSearch || '';
-                this.applyRowFilters($container, filter, currentSearch);
+                this.applyRowFilters($container, filter, currentSearch, {resetPage: true});
             } else {
-                this.applyRowFilters($container, filter, '');
+                this.applyRowFilters($container, filter, '', {resetPage: true});
             }
         },
 
         /**
          * Apply filter & search against table rows
          */
-        applyRowFilters: function($container, filter, query) {
+        applyRowFilters: function($container, filter, query, options) {
             filter = filter || 'all';
             query = (query || '').trim().toLowerCase();
+            options = options || {};
+
+            var resetPage = options.hasOwnProperty('resetPage') ? options.resetPage : true;
+            var matchedRows = [];
 
             $container.find('tbody tr.wecoza-task-row').each(function() {
                 var $row = $(this);
                 var matchesFilter = (filter === 'all') || ($row.data('task-type') === filter);
                 var matchesSearch = !query || $row.text().toLowerCase().indexOf(query) !== -1;
-                $row.toggle(matchesFilter && matchesSearch);
+                var isMatch = matchesFilter && matchesSearch;
+
+                $row.toggle(isMatch);
+
+                if (isMatch) {
+                    matchedRows.push(this);
+                }
             });
+
+            var containerId = $container.attr('id');
+            var instance = this.instances.get(containerId);
+
+            if (instance && instance.type === 'class_status') {
+                this.ensureClassStatusPagination(instance);
+                this.updateClassStatusPaginationState(instance, matchedRows, resetPage);
+                this.renderClassStatusPagination(instance);
+            }
         },
 
         /**

@@ -154,19 +154,31 @@ if ($can_sync) {
         </table>
         </div>
         <!-- Footer Pagination -->
-        <div class="d-flex justify-content-between mt-3"><span class="d-none d-sm-inline-block" data-list-info="data-list-info"></span>
-            <div class="d-flex"><button class="page-link" data-list-pagination="prev"><span class="fas fa-chevron-left"></span></button>
-            <ul class="mb-0 pagination"></ul><button class="page-link pe-0" data-list-pagination="next"><span class="fas fa-chevron-right"></span></button>
+        <div class="d-flex justify-content-between align-items-center mt-3" data-pagination-container>
+            <span class="d-none d-sm-inline-block" data-pagination-summary data-list-info="data-list-info">
+                0 <span class="text-body-tertiary"> Items of </span>0
+            </span>
+            <div class="d-flex align-items-center gap-1">
+                <button type="button"
+                        class="page-link disabled"
+                        data-pagination-action="prev"
+                        data-list-pagination="prev"
+                        aria-label="<?php esc_attr_e('Previous page', 'wecoza-notifications'); ?>"
+                        disabled>
+                    <span class="fas fa-chevron-left"></span>
+                </button>
+                <ul class="mb-0 pagination pagination-sm" data-pagination-pages></ul>
+                <button type="button"
+                        class="page-link pe-0 disabled"
+                        data-pagination-action="next"
+                        data-list-pagination="next"
+                        aria-label="<?php esc_attr_e('Next page', 'wecoza-notifications'); ?>"
+                        disabled>
+                    <span class="fas fa-chevron-right"></span>
+                </button>
             </div>
         </div>
 
-
-        <!-- Example Pagination HTML -->
-         <div class="d-flex justify-content-between mt-3"><span class="d-none d-sm-inline-block" data-list-info="data-list-info">1 to 5 <span class="text-body-tertiary"> Items of </span>43</span>
-                          <div class="d-flex"><button class="page-link disabled" data-list-pagination="prev" disabled=""><svg class="svg-inline--fa fa-chevron-left" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="chevron-left" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" data-fa-i2svg=""><path fill="currentColor" d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l192 192c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 246.6 86.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-192 192z"></path></svg><!-- <span class="fas fa-chevron-left"></span> Font Awesome fontawesome.com --></button>
-                            <ul class="mb-0 pagination"><li class="active"><button class="page" type="button" data-i="1" data-page="5">1</button></li><li><button class="page" type="button" data-i="2" data-page="5">2</button></li><li><button class="page" type="button" data-i="3" data-page="5">3</button></li><li class="disabled"><button class="page" type="button">...</button></li></ul><button class="page-link pe-0" data-list-pagination="next"><svg class="svg-inline--fa fa-chevron-right" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="chevron-right" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" data-fa-i2svg=""><path fill="currentColor" d="M310.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-192 192c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L242.7 256 73.4 86.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l192 192z"></path></svg><!-- <span class="fas fa-chevron-right"></span> Font Awesome fontawesome.com --></button>
-                          </div>
-                        </div>
 
 
 
