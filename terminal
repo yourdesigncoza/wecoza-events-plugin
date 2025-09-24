@@ -1,9 +1,0 @@
-git add .
-git commit -m "Update class status table view with Phoenix Bootstrap styling
-
-- Enhance table header with search functionality
-- Add summary statistics strip with badges
-- Implement filter buttons for task management
-- Include refresh and export action buttons
-- Apply Phoenix table pattern for consistent UI"
-git push
