@@ -23,11 +23,17 @@ psql -U your_user -d your_db -c "SELECT class_id, client_id, class_code FROM pub
 # Run PostgreSQL schema creation
 psql -U your_user -d your_db -f schema/postgresql_events_schema.sql
 
-# Test PostgreSQL connection
+# Test PostgreSQL connection (from plugin directory)
 php -r "require_once 'app/Services/PostgreSQLDatabaseService.php';
         use WecozaNotifications\PostgreSQLDatabaseService;
         \$db = PostgreSQLDatabaseService::get_instance();
         var_dump(\$db->test_connection());"
+
+# Check database table status
+psql -U your_user -d your_db -c "SELECT schemaname, tablename FROM pg_tables WHERE schemaname = 'wecoza_events';"
+
+# Verify plugin constants (requires WordPress context)
+wp eval 'echo "Plugin Dir: " . WECOZA_NOTIFICATIONS_PLUGIN_DIR . "\n";'
 ```
 
 ### Plugin Testing and Activation
@@ -35,8 +41,8 @@ php -r "require_once 'app/Services/PostgreSQLDatabaseService.php';
 # Test plugin activation (creates PostgreSQL tables if enabled)
 # This must be done through WordPress admin interface
 
-# Test event emission
-# In WordPress context:
+# Test event emission (requires WordPress context - use wp-admin or wp eval)
+wp eval "
 do_action('wecoza_event', [
     'event' => 'class.created',
     'class_id' => 123,
@@ -45,6 +51,17 @@ do_action('wecoza_event', [
     'occurred_at' => current_time('mysql'),
     'metadata' => ['client_name' => 'Test Client']
 ]);
+echo 'Event emitted successfully.';
+"
+
+# Check if plugin is active
+wp plugin status wecoza-notifications-core
+
+# List available shortcodes (after activation)
+wp eval "global \$shortcode_tags; print_r(array_keys(\$shortcode_tags));" | grep wecoza
+
+# Test shortcode rendering
+wp eval "echo do_shortcode('[wecoza_class_status limit=\"3\"]');"
 ```
 
 ### Translation Commands
@@ -52,7 +69,22 @@ do_action('wecoza_event', [
 # Generate POT file for translators
 xgettext --language=PHP --from-code=UTF-8 --keyword=__ --keyword=_e --keyword=_n:1,2 \
   --package-name="WECOZA Notifications Core" --package-version="1.0.0" \
-  --output=languages/wecoza-notifications.pot app/**/*.php
+  --output=languages/wecoza-notifications.pot app/**/*.php includes/*.php
+
+# Alternative using WordPress WP-CLI (if available)
+wp i18n make-pot . languages/wecoza-notifications.pot --domain=wecoza-notifications
+
+# Check translation coverage
+find . -name "*.php" -exec grep -l '__\|_e\|_n' {} \; | wc -l
+```
+
+### CSS and Styling
+```bash
+# Main CSS file location (for theme integration)
+/opt/lampp/htdocs/wecoza/wp-content/themes/wecoza_3_child_theme/includes/css/ydcoza-styles.css
+
+# Check CSS file exists and add styles there (not in plugin)
+ls -la /opt/lampp/htdocs/wecoza/wp-content/themes/wecoza_3_child_theme/includes/css/ydcoza-styles.css
 ```
 
 ## Architecture Overview
@@ -188,10 +220,39 @@ Events are defined in `config/events.php` with routing rules:
 ### Key Files for PostgreSQL Integration
 - `app/Services/PostgreSQLDatabaseService.php`: Main database service
 - `schema/postgresql_events_schema.sql`: Complete schema definition
-- `schema/mysql_to_postgresql_migration.sql`: Migration scripts
 - `schema/classes_schema.sql`: Classes table reference for integration
+
+### File Structure Overview
+```
+wecoza-events-plugin/
+├── wecoza-notifications-core.php    # Main plugin file
+├── includes/                        # Core WordPress integration
+│   ├── class-autoloader.php        # PSR-4 autoloader
+│   ├── class-wecoza-notifications-core.php  # Main Core class
+│   ├── class-activator.php         # Plugin activation
+│   └── class-deactivator.php       # Plugin deactivation
+├── app/                            # Application layer
+│   ├── Services/                   # Business logic services
+│   ├── Controllers/                # Request handling
+│   ├── Models/                     # Data models
+│   └── Views/                      # Presentation layer
+├── config/                         # Configuration files
+│   ├── events.php                  # Event definitions (EVT-01 to EVT-06)
+│   ├── templates.php               # Email templates
+│   └── settings.php                # System settings
+├── schema/                         # Database schemas
+└── languages/                      # Internationalization
+```
+
+### Main Plugin Entry Points
+- **Plugin Bootstrap**: `wecoza-notifications-core.php` (main plugin file)
+- **Core Initialization**: `includes/class-wecoza-notifications-core.php`
+- **Event Listener**: `app/Services/EventProcessor.php` (listens to `wecoza_event` hook)
+- **Shortcodes**: `app/Controllers/ShortcodeController.php` (11 shortcodes available)
+- **Database**: `app/Services/PostgreSQLDatabaseService.php` (singleton pattern)
 
 ### Internationalization
 - Text domain: `wecoza-notifications`
 - POT file: `languages/wecoza-notifications.pot`
-- All user-facing strings use `__()`, `_n()`, and `sprintf()` functions
+- All user-facing strings use `__()`, `_e()`, `_n()`, and `sprintf()` functions
+- Plugin loads textdomain in main plugin file via `load_plugin_textdomain()`
