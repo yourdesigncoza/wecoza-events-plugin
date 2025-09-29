@@ -3,7 +3,7 @@
 This plugin extends WordPress with tooling and UI to monitor WeCoza class changes stored in PostgreSQL. It provides:
 
 - An MVC-style internal structure (controllers, models, services, views) to keep logic organised and testable.
-- A `[wecoza_agent_logs]` shortcode that renders recent class change logs directly from PostgreSQL.
+- Task management functionality for class changes with `[wecoza_event_tasks]` shortcode.
 - Automated email notifications for new or updated classes, processed through WordPress cron.
 
 ## Requirements
@@ -37,15 +37,15 @@ To override any value, set the environment variable before using the plugin or d
 
 ## Shortcode Usage
 
-Embed the shortcode anywhere in WordPress:
+Embed the task management shortcode anywhere in WordPress:
 
 ```
-[wecoza_agent_logs limit="25"]
+[wecoza_event_tasks limit="20"]
 ```
 
-- `limit` — optional; number of entries to display (default: 50).
-- Output is rendered from the `class_change_logs` table and diff JSON is pretty-printed inside copy-friendly text areas.
-- Human-readable messages are displayed when database access fails.
+- `limit` — optional; number of class entries to display (default: 20).
+- Displays class changes with associated task management functionality.
+- Provides interactive UI for task completion and management.
 
 ## Email Notifications
 

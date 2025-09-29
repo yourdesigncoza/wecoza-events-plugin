@@ -18,7 +18,6 @@ define('WECOZA_EVENTS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WECOZA_EVENTS_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/class-wecoza-events-database.php';
-require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/class-wecoza-events-shortcode.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Models/Task.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Models/TaskCollection.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Admin/SettingsPage.php';
@@ -29,7 +28,6 @@ require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/TaskManager.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Shortcodes/EventTasksShortcode.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Controllers/TaskController.php';
 
-\WeCozaEvents\Shortcodes\AgentLogsShortcode::register();
 \WeCozaEvents\Shortcodes\EventTasksShortcode::register();
 \WeCozaEvents\Admin\SettingsPage::register();
 \WeCozaEvents\Controllers\TaskController::register();

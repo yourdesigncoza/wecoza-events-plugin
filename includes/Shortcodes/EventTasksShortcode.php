@@ -97,10 +97,10 @@ final class EventTasksShortcode
         $nonce = wp_create_nonce('wecoza_events_tasks');
         $ajaxUrl = admin_url('admin-ajax.php');
 
-        self::maybePrintAssets();
         $sortIconClass = $sortDirection === 'asc' ? 'bi-sort-up' : 'bi-sort-down';
 
         ob_start();
+        echo self::getAssets();
         ?>
         <div
             class="wecoza-event-tasks"
@@ -965,13 +965,15 @@ SQL;
         return mysql2date('M j, Y H:i', $timestamp, true);
     }
 
-    private static function maybePrintAssets(): void
+    private static function getAssets(): string
     {
         if (self::$assetsPrinted) {
-            return;
+            return '';
         }
 
         self::$assetsPrinted = true;
+
+        ob_start();
         ?>
         <script>
             (function() {
@@ -1404,6 +1406,7 @@ SQL;
             })();
         </script>
         <?php
+        return trim((string) ob_get_clean());
     }
     private static function taskManager(): TaskManager
     {
