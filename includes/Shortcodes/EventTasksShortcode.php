@@ -21,11 +21,12 @@ use function apply_filters;
 use function array_filter;
 use function array_pop;
 use function array_unique;
-use function implode;
+use function ctype_digit;
 use function esc_attr;
 use function esc_attr__;
 use function esc_html;
 use function esc_html__;
+use function esc_url;
 use function get_userdata;
 use function is_array;
 use function json_decode;
@@ -33,6 +34,8 @@ use function mysql2date;
 use function natcasesort;
 use function preg_match;
 use function preg_replace;
+use function remove_query_arg;
+use function implode;
 use function sanitize_text_field;
 use function shortcode_atts;
 use function sprintf;
@@ -72,10 +75,12 @@ final class EventTasksShortcode
 
         $sortParam = isset($_GET['wecoza_tasks_sort']) ? sanitize_text_field((string) $_GET['wecoza_tasks_sort']) : '';
         $sortDirection = $sortParam === 'start_asc' ? 'asc' : 'desc';
-        $prioritiseOpen = $sortParam === '';
+        $classIdParam = isset($_GET['class_id']) ? sanitize_text_field((string) $_GET['class_id']) : '';
+        $classIdFilter = ctype_digit($classIdParam) ? (int) $classIdParam : null;
+        $prioritiseOpen = $sortParam === '' && $classIdFilter === null;
 
         try {
-            $rows = self::fetchClasses($limit, $sortDirection, $prioritiseOpen);
+            $rows = self::fetchClasses($limit, $sortDirection, $prioritiseOpen, $classIdFilter);
         } catch (RuntimeException $exception) {
             return self::wrapMessage(
                 sprintf(
@@ -86,13 +91,24 @@ final class EventTasksShortcode
         }
 
         if ($rows === []) {
+            if ($classIdFilter !== null) {
+                return self::wrapMessage(
+                    sprintf(
+                        esc_html__('No tasks are available for class #%d.', 'wecoza-events'),
+                        $classIdFilter
+                    )
+                );
+            }
+
             return self::wrapMessage(esc_html__('No classes available.', 'wecoza-events'));
         }
 
-        $openTaskOptions = self::collectOpenTaskLabels($rows);
+        $classSpecific = $classIdFilter !== null;
+        $openTaskOptions = $classSpecific ? [] : self::collectOpenTaskLabels($rows);
         $instanceId = uniqid('wecoza-tasks-');
         $searchInputId = $instanceId . '-search';
         $openTaskSelectId = $instanceId . '-open-task';
+        $viewAllUrl = $classSpecific ? esc_url(remove_query_arg('class_id')) : '';
 
         $nonce = wp_create_nonce('wecoza_events_tasks');
         $ajaxUrl = admin_url('admin-ajax.php');
@@ -112,49 +128,67 @@ final class EventTasksShortcode
             data-complete-label="<?php echo esc_attr__('Completed', 'wecoza-events'); ?>"
             data-open-badge-class="badge-phoenix-warning"
             data-complete-badge-class="badge-phoenix-secondary"
+            data-class-filter="<?php echo esc_attr($classIdFilter !== null ? (string) $classIdFilter : ''); ?>"
         >
-            <div class="card shadow-none border my-3">
+            <div class="card shadow-none my-3">
                 <div class="card-header p-3 border-bottom">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                        <h4 class="text-body mb-0"><?php echo esc_html__('Class Tasks', 'wecoza-events'); ?></h4>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <h4 class="text-body mb-0">
+                                <?php
+                                echo esc_html(
+                                    $classSpecific
+                                        ? sprintf(__('Tasks for Class #%d', 'wecoza-events'), $classIdFilter)
+                                        : __('Class Tasks', 'wecoza-events')
+                                );
+                                ?>
+                            </h4>
+                            <?php if ($classSpecific && $viewAllUrl !== ''): ?>
+                                <a class="btn btn-link btn-sm px-0" href="<?php echo $viewAllUrl; ?>">
+                                    <?php echo esc_html__('View all classes', 'wecoza-events'); ?>
+                                </a>
+                            <?php endif; ?>
+                        </div>
                         <?php $count = count($rows); ?>
                         <span class="badge badge-phoenix fs-10 badge-phoenix-primary">
                             <?php echo esc_html(sprintf(_n('%d class', '%d classes', $count, 'wecoza-events'), $count)); ?>
                         </span>
                     </div>
-                    <div class="d-flex flex-wrap align-items-start gap-2 mt-3">
-                        <div class="search-box flex-grow-1">
-                            <form class="position-relative" role="search" data-role="tasks-filter-form">
-                                <label class="visually-hidden" for="<?php echo esc_attr($searchInputId); ?>"><?php echo esc_html__('Search classes', 'wecoza-events'); ?></label>
-                                <input
-                                    id="<?php echo esc_attr($searchInputId); ?>"
-                                    class="form-control search-input form-control-sm ps-5"
-                                    type="search"
-                                    placeholder="<?php echo esc_attr__('Search clients, classes, or agents', 'wecoza-events'); ?>"
-                                    autocomplete="off"
-                                    data-role="tasks-search"
+                    <?php if (!$classSpecific): ?>
+                        <div class="d-flex flex-wrap align-items-start gap-2 mt-3">
+                            <div class="search-box flex-grow-1">
+                                <form class="position-relative" role="search" data-role="tasks-filter-form">
+                                    <label class="visually-hidden" for="<?php echo esc_attr($searchInputId); ?>"><?php echo esc_html__('Search classes', 'wecoza-events'); ?></label>
+                                    <input
+                                        id="<?php echo esc_attr($searchInputId); ?>"
+                                        class="form-control search-input form-control-sm ps-5"
+                                        type="search"
+                                        placeholder="<?php echo esc_attr__('Search clients, classes, or agents', 'wecoza-events'); ?>"
+                                        autocomplete="off"
+                                        data-role="tasks-search"
+                                    >
+                                    <span class="search-box-icon" aria-hidden="true">
+                                        <i class="bi bi-search"></i>
+                                    </span>
+                                </form>
+                            </div>
+                            <div class="flex-grow-1 flex-sm-grow-0" style="min-width: 180px;">
+                                <label class="visually-hidden" for="<?php echo esc_attr($openTaskSelectId); ?>"><?php echo esc_html__('Filter by open task', 'wecoza-events'); ?></label>
+                                <select
+                                    id="<?php echo esc_attr($openTaskSelectId); ?>"
+                                    class="form-select form-select-sm"
+                                    data-role="open-task-filter"
+                                    <?php echo $openTaskOptions === [] ? 'disabled' : ''; ?>
                                 >
-                                <span class="search-box-icon" aria-hidden="true">
-                                    <i class="bi bi-search"></i>
-                                </span>
-                            </form>
+                                    <option value=""><?php echo esc_html__('All open tasks', 'wecoza-events'); ?></option>
+                                    <?php foreach ($openTaskOptions as $optionLabel): ?>
+                                        <?php $optionValue = self::normaliseForToken($optionLabel); ?>
+                                        <option value="<?php echo esc_attr($optionValue); ?>"><?php echo esc_html($optionLabel); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
                         </div>
-                        <div class="flex-grow-1 flex-sm-grow-0" style="min-width: 180px;">
-                            <label class="visually-hidden" for="<?php echo esc_attr($openTaskSelectId); ?>"><?php echo esc_html__('Filter by open task', 'wecoza-events'); ?></label>
-                            <select
-                                id="<?php echo esc_attr($openTaskSelectId); ?>"
-                                class="form-select form-select-sm"
-                                data-role="open-task-filter"
-                                <?php echo $openTaskOptions === [] ? 'disabled' : ''; ?>
-                            >
-                                <option value=""><?php echo esc_html__('All open tasks', 'wecoza-events'); ?></option>
-                                <?php foreach ($openTaskOptions as $optionLabel): ?>
-                                    <?php $optionValue = self::normaliseForToken($optionLabel); ?>
-                                    <option value="<?php echo esc_attr($optionValue); ?>"><?php echo esc_html($optionLabel); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
+                    <?php endif; ?>
                 </div>
                 <div class="card-body p-0">
                     <div
@@ -181,15 +215,17 @@ final class EventTasksShortcode
                                         <span class="d-inline-flex align-items-center gap-1">
                                             <?php echo esc_html__('Start Date', 'wecoza-events'); ?>
                                             <i class="bi bi-calendar-date"></i>
-                                            <button
-                                                type="button"
-                                                class="btn btn-link btn-sm p-0 text-decoration-none align-baseline"
-                                                data-role="sort-toggle"
-                                                data-sort-target="start"
-                                                aria-label="<?php echo esc_attr__('Toggle start date sort order', 'wecoza-events'); ?>"
-                                            >
-                                                <i class="bi <?php echo esc_attr($sortIconClass); ?>"></i>
-                                            </button>
+                                            <?php if (!$classSpecific): ?>
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-link btn-sm p-0 text-decoration-none align-baseline"
+                                                    data-role="sort-toggle"
+                                                    data-sort-target="start"
+                                                    aria-label="<?php echo esc_attr__('Toggle start date sort order', 'wecoza-events'); ?>"
+                                                >
+                                                    <i class="bi <?php echo esc_attr($sortIconClass); ?>"></i>
+                                                </button>
+                                            <?php endif; ?>
                                         </span>
                                     </th>
                                     <th scope="col" class="border-0"><?php echo esc_html__('Agent ID & Name', 'wecoza-events'); ?><i class="bi bi-person ms-1"></i></th>
@@ -303,7 +339,7 @@ final class EventTasksShortcode
                                                     <?php endif; ?>
 
                                                     <div class="col-12 col-lg-6">
-                                                        <div class="card shadow-none border h-100">
+                                                        <div class="card shadow-none h-100">
                                                             <div class="card-header bg-body-tertiary py-2 px-3 border-bottom">
                                                                 <h6 class="card-title fs-8 mb-0 text-body-tertiary"><?php echo esc_html__('Open Tasks', 'wecoza-events'); ?></h6>
                                                             </div>
@@ -341,7 +377,7 @@ final class EventTasksShortcode
                                                     </div>
 
                                                     <div class="col-12 col-lg-6">
-                                                        <div class="card shadow-none border h-100">
+                                                        <div class="card shadow-none h-100">
                                                             <div class="card-header bg-body-tertiary py-2 px-3 border-bottom">
                                                                 <h6 class="card-title fs-8 mb-0 text-body-tertiary"><?php echo esc_html__('Completed Tasks', 'wecoza-events'); ?></h6>
                                                             </div>
@@ -405,7 +441,7 @@ final class EventTasksShortcode
     /**
      * @return array<int, array<string, mixed>>
      */
-    private static function fetchClasses(int $limit, string $sortDirection, bool $prioritiseOpen): array
+    private static function fetchClasses(int $limit, string $sortDirection, bool $prioritiseOpen, ?int $classIdFilter): array
     {
         $pdo = Connection::getPdo();
         $schema = Connection::getSchema();
@@ -420,6 +456,11 @@ final class EventTasksShortcode
         $clientsTable = self::tableName($schema, 'clients');
         $agentsTable = self::tableName($schema, 'agents');
         $logsTable = self::tableName($schema, 'class_change_logs');
+
+        $whereClause = '';
+        if ($classIdFilter !== null) {
+            $whereClause = 'WHERE c.class_id = :class_id';
+        }
 
         $sql = <<<SQL
 SELECT
@@ -462,6 +503,7 @@ JOIN LATERAL (
     ORDER BY log.changed_at DESC
     LIMIT 1
 ) l ON TRUE
+{$whereClause}
 ORDER BY c.original_start_date {$orderDirection} NULLS LAST, c.class_id {$orderDirection}
 LIMIT :limit;
 SQL;
@@ -472,6 +514,9 @@ SQL;
         }
 
         $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
+        if ($classIdFilter !== null) {
+            $stmt->bindValue(':class_id', $classIdFilter, \PDO::PARAM_INT);
+        }
         if (!$stmt->execute()) {
             throw new RuntimeException('Failed to execute class query.');
         }
@@ -493,6 +538,11 @@ SQL;
             }
             $result = array_merge($open, $completed);
         }
+
+        foreach ($result as &$payload) {
+            unset($payload['open_count']);
+        }
+        unset($payload);
 
         return $result;
     }
@@ -1084,7 +1134,7 @@ SQL;
                             }
 
                             status.textContent = message;
-                            status.className = 'badge badge-phoenix badge-phoenix-primary text-uppercase fs-9 ms-5 mt-2';
+                            status.className = 'badge badge-phoenix badge-phoenix-primary text-uppercase fs-9 mb-2';
                             status.removeAttribute('hidden');
                         }
                     }
@@ -1092,6 +1142,11 @@ SQL;
 
                 function initTaskFilters(container) {
                     if (!container || container.dataset.filtersInitialised === '1') {
+                        return;
+                    }
+
+                    if (container.dataset.classFilter) {
+                        container.dataset.filtersInitialised = '1';
                         return;
                     }
 
@@ -1277,6 +1332,10 @@ SQL;
 
                         var wrapper = sortToggle.closest('.wecoza-event-tasks');
                         if (!wrapper) {
+                            return;
+                        }
+
+                        if (wrapper.getAttribute('data-class-filter')) {
                             return;
                         }
 
