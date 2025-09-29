@@ -20,18 +20,27 @@ use function admin_url;
 use function apply_filters;
 use function array_filter;
 use function array_pop;
+use function array_unique;
+use function implode;
 use function esc_attr;
+use function esc_attr__;
 use function esc_html;
 use function esc_html__;
 use function get_userdata;
 use function is_array;
 use function json_decode;
 use function mysql2date;
+use function natcasesort;
 use function preg_match;
+use function preg_replace;
+use function sanitize_text_field;
 use function shortcode_atts;
 use function sprintf;
+use function str_replace;
 use function strtolower;
+use function strtoupper;
 use function trim;
+use function uniqid;
 use function wp_create_nonce;
 
 final class EventTasksShortcode
@@ -61,8 +70,12 @@ final class EventTasksShortcode
             $limit = self::DEFAULT_LIMIT;
         }
 
+        $sortParam = isset($_GET['wecoza_tasks_sort']) ? sanitize_text_field((string) $_GET['wecoza_tasks_sort']) : '';
+        $sortDirection = $sortParam === 'start_asc' ? 'asc' : 'desc';
+        $prioritiseOpen = $sortParam === '';
+
         try {
-            $rows = self::fetchClasses($limit);
+            $rows = self::fetchClasses($limit, $sortDirection, $prioritiseOpen);
         } catch (RuntimeException $exception) {
             return self::wrapMessage(
                 sprintf(
@@ -76,10 +89,16 @@ final class EventTasksShortcode
             return self::wrapMessage(esc_html__('No classes available.', 'wecoza-events'));
         }
 
+        $openTaskOptions = self::collectOpenTaskLabels($rows);
+        $instanceId = uniqid('wecoza-tasks-');
+        $searchInputId = $instanceId . '-search';
+        $openTaskSelectId = $instanceId . '-open-task';
+
         $nonce = wp_create_nonce('wecoza_events_tasks');
         $ajaxUrl = admin_url('admin-ajax.php');
 
         self::maybePrintAssets();
+        $sortIconClass = $sortDirection === 'asc' ? 'bi-sort-up' : 'bi-sort-down';
 
         ob_start();
         ?>
@@ -87,6 +106,12 @@ final class EventTasksShortcode
             class="wecoza-event-tasks"
             data-nonce="<?php echo esc_attr($nonce); ?>"
             data-ajax-url="<?php echo esc_attr($ajaxUrl); ?>"
+            data-instance-id="<?php echo esc_attr($instanceId); ?>"
+            data-sort-direction="<?php echo esc_attr($sortDirection); ?>"
+            data-open-label-template="<?php echo esc_attr__('Open +%d', 'wecoza-events'); ?>"
+            data-complete-label="<?php echo esc_attr__('Completed', 'wecoza-events'); ?>"
+            data-open-badge-class="badge-phoenix-warning"
+            data-complete-badge-class="badge-phoenix-secondary"
         >
             <div class="card shadow-none border my-3">
                 <div class="card-header p-3 border-bottom">
@@ -97,27 +122,96 @@ final class EventTasksShortcode
                             <?php echo esc_html(sprintf(_n('%d class', '%d classes', $count, 'wecoza-events'), $count)); ?>
                         </span>
                     </div>
+                    <div class="d-flex flex-wrap align-items-start gap-2 mt-3">
+                        <div class="search-box flex-grow-1">
+                            <form class="position-relative" role="search" data-role="tasks-filter-form">
+                                <label class="visually-hidden" for="<?php echo esc_attr($searchInputId); ?>"><?php echo esc_html__('Search classes', 'wecoza-events'); ?></label>
+                                <input
+                                    id="<?php echo esc_attr($searchInputId); ?>"
+                                    class="form-control search-input form-control-sm ps-5"
+                                    type="search"
+                                    placeholder="<?php echo esc_attr__('Search clients, classes, or agents', 'wecoza-events'); ?>"
+                                    autocomplete="off"
+                                    data-role="tasks-search"
+                                >
+                                <span class="search-box-icon" aria-hidden="true">
+                                    <i class="bi bi-search"></i>
+                                </span>
+                            </form>
+                        </div>
+                        <div class="flex-grow-1 flex-sm-grow-0" style="min-width: 180px;">
+                            <label class="visually-hidden" for="<?php echo esc_attr($openTaskSelectId); ?>"><?php echo esc_html__('Filter by open task', 'wecoza-events'); ?></label>
+                            <select
+                                id="<?php echo esc_attr($openTaskSelectId); ?>"
+                                class="form-select form-select-sm"
+                                data-role="open-task-filter"
+                                <?php echo $openTaskOptions === [] ? 'disabled' : ''; ?>
+                            >
+                                <option value=""><?php echo esc_html__('All open tasks', 'wecoza-events'); ?></option>
+                                <?php foreach ($openTaskOptions as $optionLabel): ?>
+                                    <?php $optionValue = self::normaliseForToken($optionLabel); ?>
+                                    <option value="<?php echo esc_attr($optionValue); ?>"><?php echo esc_html($optionLabel); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body p-0">
+                    <div
+                        class="px-3 py-2 border-bottom"
+                        data-role="filter-status"
+                        data-status-template="<?php echo esc_attr__('Showing %1$d of %2$d classes', 'wecoza-events'); ?>"
+                        data-empty-message="<?php echo esc_attr__('No classes match the current filters.', 'wecoza-events'); ?>"
+                        data-match-template="<?php echo esc_attr__('Showing %1$d of %2$d classes matching "%3$s"', 'wecoza-events'); ?>"
+                        data-match-filter-template="<?php echo esc_attr__('Showing %1$d of %2$d classes matching "%3$s" with filters', 'wecoza-events'); ?>"
+                        data-filter-template="<?php echo esc_attr__('Showing %1$d of %2$d classes with filters applied', 'wecoza-events'); ?>"
+                        hidden
+                    ></div>
                     <div class="table-responsive">
                         <table class="table table-hover table-sm fs-9 mb-0 overflow-hidden" id="wecoza-event-tasks-table">
                             <thead class="border-bottom">
                                 <tr>
                                     <th scope="col" class="border-0 ps-4"><?php echo esc_html__('ID', 'wecoza-events'); ?><i class="bi bi-hash ms-1"></i></th>
+                                    <th scope="col" class="border-0"><?php echo esc_html__('Task Status', 'wecoza-events'); ?><i class="bi bi-activity ms-1"></i></th>
+                                    <th scope="col" class="border-0"><?php echo esc_html__('Change', 'wecoza-events'); ?><i class="bi bi-arrow-repeat ms-1"></i></th>
                                     <th scope="col" class="border-0"><?php echo esc_html__('Client ID & Name', 'wecoza-events'); ?><i class="bi bi-building ms-1"></i></th>
                                     <th scope="col" class="border-0"><?php echo esc_html__('Type', 'wecoza-events'); ?><i class="bi bi-tag ms-1"></i></th>
                                     <th scope="col" class="border-0"><?php echo esc_html__('Subject', 'wecoza-events'); ?><i class="bi bi-book ms-1"></i></th>
-                                    <th scope="col" class="border-0"><?php echo esc_html__('Start Date', 'wecoza-events'); ?><i class="bi bi-calendar-date ms-1"></i></th>
+                                    <th scope="col" class="border-0">
+                                        <span class="d-inline-flex align-items-center gap-1">
+                                            <?php echo esc_html__('Start Date', 'wecoza-events'); ?>
+                                            <i class="bi bi-calendar-date"></i>
+                                            <button
+                                                type="button"
+                                                class="btn btn-link btn-sm p-0 text-decoration-none align-baseline"
+                                                data-role="sort-toggle"
+                                                data-sort-target="start"
+                                                aria-label="<?php echo esc_attr__('Toggle start date sort order', 'wecoza-events'); ?>"
+                                            >
+                                                <i class="bi <?php echo esc_attr($sortIconClass); ?>"></i>
+                                            </button>
+                                        </span>
+                                    </th>
                                     <th scope="col" class="border-0"><?php echo esc_html__('Agent ID & Name', 'wecoza-events'); ?><i class="bi bi-person ms-1"></i></th>
                                     <th scope="col" class="border-0"><?php echo esc_html__('Exam Class', 'wecoza-events'); ?><i class="bi bi-mortarboard ms-1"></i></th>
-                                    <th scope="col" class="border-0"><?php echo esc_html__('Status', 'wecoza-events'); ?><i class="bi bi-activity ms-1"></i></th>
                                     <th scope="col" class="border-0"><?php echo esc_html__('SETA', 'wecoza-events'); ?><i class="bi bi-award ms-1"></i></th>
                                     <th scope="col" class="border-0 text-end pe-4"><?php echo esc_html__('Actions', 'wecoza-events'); ?><i class="bi bi-gear ms-1"></i></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($rows as $class): ?>
+                                    <?php
+                                        $searchBaseParts = self::buildSearchBaseParts($class);
+                                        $searchBase = implode(' ', $searchBaseParts);
+                                        $searchIndex = self::buildSearchIndexFromParts($class, $searchBaseParts);
+                                        $openTaskTokens = self::buildOpenTaskTokens($class);
+                                    ?>
                                     <tr
+                                        data-role="class-row"
+                                        data-search-base="<?php echo esc_attr($searchBase); ?>"
+                                        data-search-index="<?php echo esc_attr($searchIndex); ?>"
+                                        data-open-tasks="<?php echo esc_attr($openTaskTokens); ?>"
+                                        data-status-label="<?php echo esc_attr(self::normaliseForIndex((string) ($class['status']['label'] ?? ''))); ?>"
                                         data-class-id="<?php echo esc_attr((string) $class['id']); ?>"
                                         data-log-id="<?php echo esc_attr($class['log_id'] ?? ''); ?>"
                                         data-manageable="<?php echo $class['manageable'] ? '1' : '0'; ?>"
@@ -125,6 +219,16 @@ final class EventTasksShortcode
                                     >
                                         <td class="py-2 align-middle text-center fs-8 white-space-nowrap">
                                                 <span class="badge fs-10 badge-phoenix badge-phoenix-secondary">#<?php echo esc_html((string) $class['id']); ?></span>
+                                        </td>
+                                        <td data-role="status-cell">
+                                            <span class="badge badge-phoenix fs-10 <?php echo esc_attr($class['status']['class']); ?>" data-role="status-badge">
+                                                <?php echo esc_html($class['status']['label']); ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-phoenix fs-10 <?php echo esc_attr($class['change']['class']); ?>">
+                                                <?php echo esc_html($class['change']['label']); ?>
+                                            </span>
                                         </td>
                                         <td>
                                             <div class="fw-semibold text-body"><?php echo esc_html((string) $class['client']['id']); ?> : <?php echo esc_html($class['client']['name']); ?></div>
@@ -143,11 +247,6 @@ final class EventTasksShortcode
                                         <td>
                                             <span class="badge badge-phoenix fs-10 <?php echo esc_attr($class['exam']['class']); ?>">
                                                 <?php echo esc_html($class['exam']['label']); ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span class="badge badge-phoenix fs-10 <?php echo esc_attr($class['status']['class']); ?>">
-                                                <?php echo esc_html($class['status']['label']); ?>
                                             </span>
                                         </td>
                                         <td>
@@ -174,7 +273,7 @@ final class EventTasksShortcode
                                         data-panel-id="task-panel-<?php echo esc_attr((string) $class['id']); ?>"
                                         hidden
                                     >
-                                        <td colspan="10" class="bg-body-tertiary">
+                                        <td colspan="11" class="bg-body-tertiary">
                                             <div class="p-4 wecoza-task-panel-content" data-log-id="<?php echo esc_attr($class['log_id'] ?? ''); ?>" data-class-id="<?php echo esc_attr((string) $class['id']); ?>" data-manageable="<?php echo $class['manageable'] ? '1' : '0'; ?>">
                                                 <div class="row g-4 align-items-start">
                                                     <?php /*
@@ -234,7 +333,7 @@ final class EventTasksShortcode
                                                                         </li>
                                                                     <?php endforeach; ?>
                                                                 </ul>
-                                                                <div class="alert alert-light border-top mb-0 py-2 px-3 small text-body-secondary" data-empty="open" <?php echo empty($class['tasks']['open']) ? '' : 'hidden'; ?>>
+                                                                <div class="alert alert-subtle-primary py-2 px-3 m-2" style="border-radius: 0;" data-empty="open" <?php echo empty($class['tasks']['open']) ? '' : 'hidden'; ?>>
                                                                     <?php echo esc_html__('All tasks are completed.', 'wecoza-events'); ?>
                                                                 </div>
                                                             </div>
@@ -283,6 +382,11 @@ final class EventTasksShortcode
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
+                                <tr data-role="no-results" hidden>
+                                    <td colspan="11" class="text-center py-4 text-body-secondary">
+                                        <?php echo esc_html__('No classes match the current filters.', 'wecoza-events'); ?>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -301,7 +405,7 @@ final class EventTasksShortcode
     /**
      * @return array<int, array<string, mixed>>
      */
-    private static function fetchClasses(int $limit): array
+    private static function fetchClasses(int $limit, string $sortDirection, bool $prioritiseOpen): array
     {
         $pdo = Connection::getPdo();
         $schema = Connection::getSchema();
@@ -309,6 +413,8 @@ final class EventTasksShortcode
         if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $schema)) {
             throw new RuntimeException('Invalid schema name.');
         }
+
+        $orderDirection = strtolower($sortDirection) === 'asc' ? 'ASC' : 'DESC';
 
         $classesTable = self::tableName($schema, 'classes');
         $clientsTable = self::tableName($schema, 'clients');
@@ -348,14 +454,15 @@ FROM {$classesTable} c
 LEFT JOIN {$clientsTable} cl ON cl.client_id = c.client_id
 LEFT JOIN {$agentsTable} ia ON ia.agent_id = c.initial_class_agent
 LEFT JOIN {$agentsTable} pa ON pa.agent_id = c.class_agent
-LEFT JOIN LATERAL (
+JOIN LATERAL (
     SELECT id, operation, changed_at
     FROM {$logsTable} log
     WHERE log.class_id = c.class_id
+      AND LOWER(log.operation) IN ('insert', 'update')
     ORDER BY log.changed_at DESC
     LIMIT 1
 ) l ON TRUE
-ORDER BY c.original_start_date DESC NULLS LAST, c.class_id DESC
+ORDER BY c.original_start_date {$orderDirection} NULLS LAST, c.class_id {$orderDirection}
 LIMIT :limit;
 SQL;
 
@@ -374,6 +481,19 @@ SQL;
             $result[] = self::formatClassRow($row);
         }
 
+        if ($prioritiseOpen) {
+            $open = [];
+            $completed = [];
+            foreach ($result as $payload) {
+                if (($payload['open_count'] ?? 0) > 0) {
+                    $open[] = $payload;
+                } else {
+                    $completed[] = $payload;
+                }
+            }
+            $result = array_merge($open, $completed);
+        }
+
         return $result;
     }
 
@@ -389,11 +509,11 @@ SQL;
         $dueDate = self::formatDueDate((string) ($row['delivery_date'] ?? ''), $startDate);
         $agentDisplay = self::formatAgentDisplay($row);
         $exam = self::formatExamLabel((bool) ($row['exam_class'] ?? false), (string) ($row['exam_type'] ?? ''));
-        $status = self::deriveStatus($row, $startDate, $dueDate);
         $seta = self::formatSetaLabel((bool) ($row['seta_funded'] ?? false), (string) ($row['seta_name'] ?? ''));
 
         $logId = isset($row['log_id']) ? (int) $row['log_id'] : null;
         $operation = strtolower((string) ($row['operation'] ?? 'insert')) ?: 'insert';
+        $change = self::formatChangeBadge($operation);
 
         if ($logId !== null && $logId > 0) {
             $tasksCollection = self::taskManager()->getTasksWithTemplate($logId, $operation);
@@ -402,6 +522,10 @@ SQL;
             $tasksCollection = self::templateRegistry()->getTemplateForOperation($operation);
             $manageable = false;
         }
+
+        $tasksPayload = self::prepareTaskPayload($tasksCollection);
+        $openCount = count($tasksPayload['open'] ?? []);
+        $status = self::formatTaskStatusBadge($openCount);
 
         return [
             'id' => $classId,
@@ -418,9 +542,11 @@ SQL;
             'exam' => $exam,
             'status' => $status,
             'seta' => $seta,
+            'change' => $change,
             'log_id' => $logId,
             'manageable' => $manageable,
-            'tasks' => self::prepareTaskPayload($tasksCollection),
+            'tasks' => $tasksPayload,
+            'open_count' => $openCount,
         ];
     }
 
@@ -571,6 +697,48 @@ SQL;
         ];
     }
 
+    private static function formatTaskStatusBadge(int $openCount): array
+    {
+        if ($openCount > 0) {
+            return [
+                'label' => sprintf(__('Open +%d', 'wecoza-events'), $openCount),
+                'class' => 'badge-phoenix-warning',
+            ];
+        }
+
+        return [
+            'label' => strtoupper(__('Completed', 'wecoza-events')),
+            'class' => 'badge-phoenix-secondary',
+        ];
+    }
+
+    private static function formatChangeBadge(string $operation): array
+    {
+        $value = strtolower(trim($operation));
+
+        switch ($value) {
+            case 'insert':
+                $label = strtoupper(__('Insert', 'wecoza-events'));
+                $class = 'badge-phoenix-success';
+                break;
+            case 'update':
+                $label = strtoupper(__('Update', 'wecoza-events'));
+                $class = 'badge-phoenix-primary';
+                break;
+            default:
+                $labelBase = $value !== '' ? ucfirst($value) : __('Unknown', 'wecoza-events');
+                $label = strtoupper($labelBase);
+                $class = 'badge-phoenix-secondary';
+                break;
+        }
+
+        return [
+            'value' => $value !== '' ? $value : 'unknown',
+            'label' => $label,
+            'class' => $class,
+        ];
+    }
+
     private static function formatDueDate(string $rawDelivery, array $startDate): array
     {
         if ($rawDelivery !== '') {
@@ -628,6 +796,150 @@ SQL;
         ];
     }
 
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, string>
+     */
+    private static function collectOpenTaskLabels(array $rows): array
+    {
+        $labels = [];
+
+        foreach ($rows as $row) {
+            $tasks = $row['tasks']['open'] ?? [];
+            if (!is_array($tasks)) {
+                continue;
+            }
+
+            foreach ($tasks as $task) {
+                if (!is_array($task)) {
+                    continue;
+                }
+
+                $label = trim((string) ($task['label'] ?? ''));
+                if ($label === '') {
+                    continue;
+                }
+
+                $labels[$label] = true;
+            }
+        }
+
+        $unique = array_keys($labels);
+        natcasesort($unique);
+
+        return array_values($unique);
+    }
+
+    private static function buildSearchIndexString(array $class): string
+    {
+        $baseParts = self::buildSearchBaseParts($class);
+
+        return self::buildSearchIndexFromParts($class, $baseParts);
+    }
+
+    private static function buildSearchBaseString(array $class): string
+    {
+        return implode(' ', self::buildSearchBaseParts($class));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function buildSearchBaseParts(array $class): array
+    {
+        $parts = [];
+        $parts[] = (string) ($class['id'] ?? '');
+        $parts[] = (string) ($class['code'] ?? '');
+        $parts[] = (string) ($class['subject'] ?? '');
+        $parts[] = (string) ($class['type'] ?? '');
+        $parts[] = (string) ($class['client']['id'] ?? '');
+        $parts[] = (string) ($class['client']['name'] ?? '');
+        $parts[] = (string) ($class['agent_display'] ?? '');
+        $parts[] = (string) ($class['seta']['label'] ?? '');
+        $parts[] = (string) ($class['change']['label'] ?? '');
+        $parts[] = (string) ($class['change']['value'] ?? '');
+
+        $parts = array_filter(array_map([self::class, 'normaliseForIndex'], $parts), static fn (string $value): bool => $value !== '');
+
+        return array_values(array_unique($parts));
+    }
+
+    /**
+     * @param array<int, string> $baseParts
+     */
+    private static function buildSearchIndexFromParts(array $class, array $baseParts): string
+    {
+        $tokens = $baseParts;
+
+        $openTasks = $class['tasks']['open'] ?? [];
+        if (is_array($openTasks)) {
+            foreach ($openTasks as $task) {
+                if (is_array($task) && isset($task['label'])) {
+                    $token = self::normaliseForIndex((string) $task['label']);
+                    if ($token !== '') {
+                        $tokens[] = $token;
+                    }
+                }
+            }
+        }
+
+        if (isset($class['status']['label'])) {
+            $statusToken = self::normaliseForIndex((string) $class['status']['label']);
+            if ($statusToken !== '') {
+                $tokens[] = $statusToken;
+            }
+        }
+
+        if ($tokens === []) {
+            return '';
+        }
+
+        $tokens = array_values(array_unique($tokens));
+
+        return implode(' ', $tokens);
+    }
+
+    private static function buildOpenTaskTokens(array $class): string
+    {
+        $openTasks = $class['tasks']['open'] ?? [];
+        if (!is_array($openTasks) || $openTasks === []) {
+            return '';
+        }
+
+        $tokens = [];
+        foreach ($openTasks as $task) {
+            if (!is_array($task)) {
+                continue;
+            }
+
+            $token = self::normaliseForToken((string) ($task['label'] ?? ''));
+            if ($token !== '') {
+                $tokens[] = $token;
+            }
+        }
+
+        if ($tokens === []) {
+            return '';
+        }
+
+        $tokens = array_values(array_unique($tokens));
+
+        return implode('|', $tokens);
+    }
+
+    private static function normaliseForToken(string $value): string
+    {
+        return self::normaliseForIndex($value);
+    }
+
+    private static function normaliseForIndex(string $value): string
+    {
+        $value = str_replace('|', ' ', strtolower(trim($value)));
+        $value = preg_replace('/\s+/', ' ', $value);
+
+        return $value === null ? '' : $value;
+    }
+
     private static function resolveUserName(?int $userId): string
     {
         if ($userId === null || $userId <= 0) {
@@ -676,6 +988,193 @@ SQL;
                     });
                 }
 
+                function normaliseToken(value) {
+                    return String(value || '')
+                        .toLowerCase()
+                        .replace(/\|/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                }
+
+                function normaliseSearch(value) {
+                    return String(value || '')
+                        .toLowerCase()
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                }
+
+                function applyTaskFilters(container) {
+                    if (!container) {
+                        return;
+                    }
+
+                    var searchInput = container.querySelector('[data-role="tasks-search"]');
+                    var select = container.querySelector('[data-role="open-task-filter"]');
+                    var status = container.querySelector('[data-role="filter-status"]');
+                    var noResultsRow = container.querySelector('[data-role="no-results"]');
+
+                    var searchTerm = searchInput ? normaliseSearch(searchInput.value) : '';
+                    var selectedTask = select ? normaliseToken(select.value) : '';
+                    var filtersActive = searchTerm !== '' || selectedTask !== '';
+
+                    var rows = container.querySelectorAll('tr[data-role="class-row"]');
+                    var total = rows.length;
+                    var visible = 0;
+
+                    rows.forEach(function(row) {
+                        var matches = true;
+                        var searchIndex = row.getAttribute('data-search-index') || '';
+
+                        if (searchTerm !== '') {
+                            matches = searchIndex.indexOf(searchTerm) !== -1;
+                        }
+
+                        if (matches && selectedTask !== '') {
+                            var tokens = row.getAttribute('data-open-tasks') || '';
+                            tokens = tokens ? tokens.split('|') : [];
+                            matches = tokens.indexOf(selectedTask) !== -1;
+                        }
+
+                        if (matches) {
+                            row.removeAttribute('hidden');
+                            visible += 1;
+                        } else {
+                            row.setAttribute('hidden', 'hidden');
+                        }
+
+                        var panelId = row.getAttribute('data-panel-id');
+                        if (!matches && panelId) {
+                            var panelRow = container.querySelector('.wecoza-task-panel-row[data-panel-id="' + panelId + '"]');
+                            if (panelRow) {
+                                panelRow.setAttribute('hidden', 'hidden');
+                            }
+                        }
+                    });
+
+                    if (noResultsRow) {
+                        if (visible === 0 && total > 0) {
+                            noResultsRow.removeAttribute('hidden');
+                        } else {
+                            noResultsRow.setAttribute('hidden', 'hidden');
+                        }
+                    }
+
+                    if (status) {
+                        if (!filtersActive) {
+                            status.setAttribute('hidden', 'hidden');
+                            status.textContent = '';
+                            status.className = '';
+                        } else {
+                            var searchActive = searchTerm !== '';
+                            var message;
+
+                            if (visible === 0) {
+                                message = status.getAttribute('data-empty-message') || '';
+                            } else if (searchActive && selectedTask !== '') {
+                                var matchFilterTemplate = status.getAttribute('data-match-filter-template') || '';
+                                message = matchFilterTemplate ? matchFilterTemplate.replace('%1$d', visible).replace('%2$d', total).replace('%3$s', searchTerm) : visible + ' / ' + total;
+                            } else if (searchActive) {
+                                var matchTemplate = status.getAttribute('data-match-template') || '';
+                                message = matchTemplate ? matchTemplate.replace('%1$d', visible).replace('%2$d', total).replace('%3$s', searchTerm) : visible + ' / ' + total;
+                            } else {
+                                var filterTemplate = status.getAttribute('data-filter-template') || '';
+                                message = filterTemplate ? filterTemplate.replace('%1$d', visible).replace('%2$d', total) : visible + ' / ' + total;
+                            }
+
+                            status.textContent = message;
+                            status.className = 'badge badge-phoenix badge-phoenix-primary text-uppercase fs-9 ms-5 mt-2';
+                            status.removeAttribute('hidden');
+                        }
+                    }
+                }
+
+                function initTaskFilters(container) {
+                    if (!container || container.dataset.filtersInitialised === '1') {
+                        return;
+                    }
+
+                    container.dataset.filtersInitialised = '1';
+
+                    var searchInput = container.querySelector('[data-role="tasks-search"]');
+                    var select = container.querySelector('[data-role="open-task-filter"]');
+                    var form = container.querySelector('[data-role="tasks-filter-form"]');
+
+                    var handler = function() {
+                        applyTaskFilters(container);
+                    };
+
+                    if (form) {
+                        form.addEventListener('submit', function(event) {
+                            event.preventDefault();
+                            handler();
+                        });
+                    }
+
+                    if (searchInput) {
+                        searchInput.addEventListener('input', handler);
+                    }
+
+                    if (select) {
+                        select.addEventListener('change', handler);
+                    }
+
+                    handler();
+                }
+
+                function updateRowFilterMetadata(container, panelRow, openTasks) {
+                    if (!container || !panelRow) {
+                        return;
+                    }
+
+                    var panelId = panelRow.getAttribute('data-panel-id');
+                    if (!panelId) {
+                        return;
+                    }
+
+                    var summaryRow = container.querySelector('tr[data-role="class-row"][data-panel-id="' + panelId + '"]');
+                    if (!summaryRow) {
+                        return;
+                    }
+
+                    var tokens = Array.isArray(openTasks) ? openTasks.map(function(task) {
+                        if (!task || typeof task !== 'object') {
+                            return '';
+                        }
+                        return normaliseToken(task.label);
+                    }).filter(function(token) {
+                        return token !== '';
+                    }) : [];
+
+                    summaryRow.setAttribute('data-open-tasks', tokens.join('|'));
+
+                    var base = summaryRow.getAttribute('data-search-base') || '';
+                    var searchIndex = base;
+
+                    var statusValue = summaryRow.getAttribute('data-status-label') || '';
+                    if (statusValue) {
+                        searchIndex = searchIndex ? searchIndex + ' ' + statusValue : statusValue;
+                    }
+
+                    tokens.forEach(function(token) {
+                        if (token && searchIndex.indexOf(token) === -1) {
+                            searchIndex = searchIndex ? searchIndex + ' ' + token : token;
+                        }
+                    });
+
+                    summaryRow.setAttribute('data-search-index', searchIndex);
+                }
+
+                function ready(callback) {
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', function onReady() {
+                            document.removeEventListener('DOMContentLoaded', onReady);
+                            callback();
+                        });
+                    } else {
+                        callback();
+                    }
+                }
+
                 function buildOpenTaskHtml(task, classId, disabled) {
                     var noteId = 'wecoza-note-' + classId + '-' + task.id;
                     return '' +
@@ -714,7 +1213,83 @@ SQL;
                     }
                 }
 
+                function updateSummaryStatus(container, panelRow, openTasks) {
+                    if (!container || !panelRow) {
+                        return;
+                    }
+
+                    var panelId = panelRow.getAttribute('data-panel-id');
+                    if (!panelId) {
+                        return;
+                    }
+
+                    var summaryRow = container.querySelector('tr[data-role="class-row"][data-panel-id="' + panelId + '"]');
+                    if (!summaryRow) {
+                        return;
+                    }
+
+                    var badge = summaryRow.querySelector('[data-role="status-badge"]');
+                    if (!badge) {
+                        return;
+                    }
+
+                    var openCount = Array.isArray(openTasks) ? openTasks.length : 0;
+                    var openTemplate = container.getAttribute('data-open-label-template') || 'Open +%d';
+                    var completeLabel = container.getAttribute('data-complete-label') || 'Completed';
+                    var openClass = container.getAttribute('data-open-badge-class') || 'badge-phoenix-warning';
+                    var completeClass = container.getAttribute('data-complete-badge-class') || 'badge-phoenix-secondary';
+
+                    var label;
+                    var variant;
+                    if (openCount > 0) {
+                        if (openTemplate.indexOf('%d') !== -1) {
+                            label = openTemplate.replace('%d', openCount);
+                        } else {
+                            label = openTemplate + ' ' + openCount;
+                        }
+                        variant = openClass;
+                    } else {
+                        label = completeLabel.toUpperCase();
+                        variant = completeClass;
+                    }
+
+                    badge.textContent = label;
+
+                    var classes = badge.className.split(' ').filter(function(name) {
+                        return name && !/^badge-phoenix-/.test(name);
+                    });
+                    classes.push(variant);
+                    badge.className = classes.join(' ');
+
+                    summaryRow.setAttribute('data-status-label', normaliseToken(label));
+                }
+
+                ready(function() {
+                    document.querySelectorAll('.wecoza-event-tasks').forEach(initTaskFilters);
+                });
+
                 document.addEventListener('click', function(event) {
+                    var sortToggle = event.target.closest('[data-role="sort-toggle"]');
+                    if (sortToggle) {
+                        event.preventDefault();
+
+                        var wrapper = sortToggle.closest('.wecoza-event-tasks');
+                        if (!wrapper) {
+                            return;
+                        }
+
+                        var currentSort = (wrapper.getAttribute('data-sort-direction') || 'desc').toLowerCase();
+                        var nextSort = currentSort === 'asc' ? 'desc' : 'asc';
+
+                        var url = new URL(window.location.href);
+                        url.searchParams.set('wecoza_tasks_sort', nextSort === 'asc' ? 'start_asc' : 'start_desc');
+                        url.searchParams.delete('paged');
+                        url.searchParams.delete('page');
+
+                        window.location.href = url.toString();
+                        return;
+                    }
+
                     var toggle = event.target.closest('.wecoza-task-toggle');
                     if (toggle) {
                         event.preventDefault();
@@ -816,6 +1391,10 @@ SQL;
                             completedList.innerHTML = data.tasks.completed.map(function(task) { return buildCompletedTaskHtml(task, disabled); }).join('');
                             updateEmptyState(panel, 'completed', data.tasks.completed.length === 0);
                         }
+
+                        updateSummaryStatus(wrapper, panelRow, data.tasks.open || []);
+                        updateRowFilterMetadata(wrapper, panelRow, data.tasks.open || []);
+                        applyTaskFilters(wrapper);
                     }).catch(function(error) {
                         window.alert(error.message || '<?php echo esc_js(__('Unable to update task.', 'wecoza-events')); ?>');
                     }).finally(function() {
