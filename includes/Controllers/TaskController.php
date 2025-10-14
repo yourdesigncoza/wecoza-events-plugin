@@ -5,41 +5,47 @@ namespace WeCozaEvents\Controllers;
 
 use Throwable;
 use WeCozaEvents\Services\TaskManager;
-use WeCozaEvents\Shortcodes\EventTasksShortcode;
+use WeCozaEvents\Support\WordPressRequest;
+use WeCozaEvents\Views\Presenters\ClassTaskPresenter;
 
 use function __;
-use function absint;
 use function add_action;
 use function check_ajax_referer;
 use function current_time;
 use function get_current_user_id;
+use function in_array;
 use function is_user_logged_in;
-use function sanitize_text_field;
-use function wp_send_json_error;
-use function wp_send_json_success;
-use function wp_unslash;
 
 final class TaskController
 {
     private TaskManager $manager;
+    private ClassTaskPresenter $presenter;
+    private WordPressRequest $request;
+    private JsonResponder $responder;
 
-    public function __construct(?TaskManager $manager = null)
+    public function __construct(
+        ?TaskManager $manager = null,
+        ?ClassTaskPresenter $presenter = null,
+        ?WordPressRequest $request = null,
+        ?JsonResponder $responder = null
+    )
     {
         $this->manager = $manager ?? new TaskManager();
+        $this->presenter = $presenter ?? new ClassTaskPresenter();
+        $this->request = $request ?? new WordPressRequest();
+        $this->responder = $responder ?? new JsonResponder();
     }
 
-    public static function register(): void
+    public static function register(?self $controller = null): void
     {
-        $controller = new self();
-        add_action('wp_ajax_wecoza_events_task_update', [$controller, 'handleUpdate']);
-        add_action('wp_ajax_nopriv_wecoza_events_task_update', [$controller, 'handleUnauthorized']);
+        $instance = $controller ?? new self();
+        add_action('wp_ajax_wecoza_events_task_update', [$instance, 'handleUpdate']);
+        add_action('wp_ajax_nopriv_wecoza_events_task_update', [$instance, 'handleUnauthorized']);
     }
 
     public function handleUnauthorized(): void
     {
-        wp_send_json_error([
-            'message' => __('Authentication required.', 'wecoza-events'),
-        ], 401);
+        $this->responder->error(__('Authentication required.', 'wecoza-events'), 401);
     }
 
     public function handleUpdate(): void
@@ -47,42 +53,36 @@ final class TaskController
         check_ajax_referer('wecoza_events_tasks', 'nonce');
 
         if (!is_user_logged_in()) {
-            wp_send_json_error([
-                'message' => __('Please sign in to manage tasks.', 'wecoza-events'),
-            ], 403);
+            $this->responder->error(__('Please sign in to manage tasks.', 'wecoza-events'), 403);
         }
 
-        $logId = absint(wp_unslash($_POST['log_id'] ?? 0));
-        $taskId = sanitize_text_field(wp_unslash($_POST['task_id'] ?? ''));
-        $taskAction = sanitize_text_field(wp_unslash($_POST['task_action'] ?? ''));
+        $logId = $this->request->getPostInt('log_id') ?? 0;
+        $taskId = $this->request->getPostString('task_id', '') ?? '';
+        $taskAction = $this->request->getPostString('task_action', '') ?? '';
 
-        if ($logId <= 0 || $taskId === '' || ($taskAction !== 'complete' && $taskAction !== 'reopen')) {
-            wp_send_json_error([
-                'message' => __('Invalid task request.', 'wecoza-events'),
-            ], 400);
+        if ($logId <= 0 || $taskId === '' || !in_array($taskAction, ['complete', 'reopen'], true)) {
+            $this->responder->error(__('Invalid task request.', 'wecoza-events'), 400);
         }
 
         try {
             if ($taskAction === 'complete') {
-                $note = sanitize_text_field(wp_unslash($_POST['note'] ?? ''));
+                $note = $this->request->getPostString('note');
                 $tasks = $this->manager->markTaskCompleted(
                     $logId,
                     $taskId,
                     get_current_user_id(),
                     current_time('mysql', true),
-                    $note !== '' ? $note : null
+                    $note !== null && $note !== '' ? $note : null
                 );
             } else {
                 $tasks = $this->manager->reopenTask($logId, $taskId);
             }
         } catch (Throwable $exception) {
-            wp_send_json_error([
-                'message' => $exception->getMessage(),
-            ], 500);
+            $this->responder->error($exception->getMessage(), 500);
         }
 
-        wp_send_json_success([
-            'tasks' => EventTasksShortcode::prepareTaskPayload($tasks),
+        $this->responder->success([
+            'tasks' => $this->presenter->presentTasks($tasks),
         ]);
     }
 }

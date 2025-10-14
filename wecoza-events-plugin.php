@@ -20,17 +20,38 @@ define('WECOZA_EVENTS_PLUGIN_URL', plugin_dir_url(__FILE__));
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/class-wecoza-events-database.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Models/Task.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Models/TaskCollection.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Models/ClassTaskRepository.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Admin/SettingsPage.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/NotificationSettings.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/NotificationProcessor.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/TaskTemplateRegistry.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/TaskManager.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/ClassTaskService.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Support/Container.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Support/WordPressRequest.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Views/TemplateRenderer.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Views/Presenters/ClassTaskPresenter.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Shortcodes/EventTasksShortcode.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Controllers/JsonResponder.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Controllers/TaskController.php';
 
-\WeCozaEvents\Shortcodes\EventTasksShortcode::register();
+\WeCozaEvents\Shortcodes\EventTasksShortcode::register(
+    new \WeCozaEvents\Shortcodes\EventTasksShortcode(
+        \WeCozaEvents\Support\Container::classTaskService(),
+        \WeCozaEvents\Support\Container::classTaskPresenter(),
+        \WeCozaEvents\Support\Container::templateRenderer(),
+        \WeCozaEvents\Support\Container::wordpressRequest()
+    )
+);
 \WeCozaEvents\Admin\SettingsPage::register();
-\WeCozaEvents\Controllers\TaskController::register();
+\WeCozaEvents\Controllers\TaskController::register(
+    new \WeCozaEvents\Controllers\TaskController(
+        \WeCozaEvents\Support\Container::taskManager(),
+        \WeCozaEvents\Support\Container::classTaskPresenter(),
+        \WeCozaEvents\Support\Container::wordpressRequest(),
+        \WeCozaEvents\Support\Container::jsonResponder()
+    )
+);
 
 add_filter('cron_schedules', 'wecoza_events_register_schedule');
 register_activation_hook(__FILE__, 'wecoza_events_schedule_notifications');

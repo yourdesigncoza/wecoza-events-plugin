@@ -2,7 +2,9 @@
 
 ## Project Structure & Module Organization
 The plugin entry point `wecoza-events-plugin.php` boots the MVC-style code held in `includes/`. Map updates across these directories before changing logic:
-- `includes/Controllers`, `includes/Models`, `includes/Services`, `includes/Views` organise request flow, data access, background jobs, and render templates.
+- `includes/Controllers`, `includes/Models`, `includes/Services`, and `includes/Views` organise request flow, data access, business rules, and UI rendering.
+- `includes/Views/Presenters` contains formatter classes (e.g. `ClassTaskPresenter`) that prepare data for templates, while `includes/Views/event-tasks/` holds the Bootstrap-heavy task table markup rendered via `TemplateRenderer`.
+- `includes/Support` keeps request/response abstractions (`WordPressRequest`) used by controllers together with the shared `JsonResponder` for AJAX responses.
 - `includes/Admin` manages the wp-admin settings page and related helpers.
 - SQL assets live in `schema/`, reference docs and demo payloads sit in `docs/`, while UI overrides belong in `bootstrap-5-custom/`.
 Keep PostgreSQL connection helpers isolated in `includes/class-wecoza-events-database.php` to avoid leaking credentials elsewhere.
