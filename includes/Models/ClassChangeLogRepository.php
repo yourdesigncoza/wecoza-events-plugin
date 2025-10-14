@@ -19,7 +19,7 @@ final class ClassChangeLogRepository
         $tableName = $schemaName . '.' . $this->quoteIdentifier('class_change_logs');
 
         $sql = sprintf(
-            "SELECT id, operation, changed_at, class_id, (new_row->>'class_code') AS class_code, (new_row->>'class_subject') AS class_subject, diff FROM %s ORDER BY id ASC;",
+            "SELECT log_id, operation, changed_at, class_id, (new_row->>'class_code') AS class_code, (new_row->>'class_subject') AS class_subject, diff FROM %s ORDER BY log_id ASC;",
             $tableName
         );
 

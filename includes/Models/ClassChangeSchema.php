@@ -23,13 +23,14 @@ final class ClassChangeSchema
 
         $createTableSql = sprintf(
             "CREATE TABLE IF NOT EXISTS %s (
-    id BIGSERIAL PRIMARY KEY,
+    log_id BIGSERIAL PRIMARY KEY,
     class_id INTEGER NOT NULL,
     operation TEXT NOT NULL,
     changed_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
     new_row JSONB NOT NULL,
     old_row JSONB,
-    diff JSONB NOT NULL DEFAULT '{}'::jsonb
+    diff JSONB NOT NULL DEFAULT '{}'::jsonb,
+    tasks JSONB DEFAULT '[]'::jsonb
 );",
             $tableName
         );

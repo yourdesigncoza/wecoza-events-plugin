@@ -48,7 +48,7 @@ final class NotificationProcessor
         $latestId = $lastProcessed;
 
         foreach ($rows as $row) {
-            $latestId = max($latestId, (int) $row['id']);
+            $latestId = max($latestId, (int) $row['log_id']);
             $operation = strtoupper((string) ($row['operation'] ?? ''));
             $recipient = $this->settings->getRecipientForOperation($operation);
             if ($recipient === null) {
@@ -65,9 +65,9 @@ final class NotificationProcessor
 
             $sent = wp_mail($recipient, $subject, $body, $headers);
             if (!$sent) {
-                error_log(sprintf('WeCoza notification failed for row %d to %s', (int) $row['id'], $recipient));
+                error_log(sprintf('WeCoza notification failed for row %d to %s', (int) $row['log_id'], $recipient));
             } else {
-                error_log(sprintf('WeCoza notification sent for row %d to %s', (int) $row['id'], $recipient));
+                error_log(sprintf('WeCoza notification sent for row %d to %s', (int) $row['log_id'], $recipient));
             }
         }
 
@@ -84,7 +84,7 @@ final class NotificationProcessor
         $table = sprintf('"%s".class_change_logs', $this->schema);
         $sql = <<<SQL
 SELECT
-    id,
+    log_id,
     operation,
     changed_at,
     class_id,
@@ -92,8 +92,8 @@ SELECT
     old_row,
     diff
 FROM {$table}
-WHERE id > :after_id
-ORDER BY id ASC;
+WHERE log_id > :after_id
+ORDER BY log_id ASC;
 SQL;
 
         $stmt = $this->pdo->prepare($sql);

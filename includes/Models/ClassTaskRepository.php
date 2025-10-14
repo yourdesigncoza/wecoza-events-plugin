@@ -70,15 +70,15 @@ SELECT
     c.stop_restart_dates,
     c.updated_at,
     cl.client_name,
-    l.id AS log_id,
+    l.log_id AS log_id,
     l.operation,
     l.changed_at
 FROM {$classesTable} c
 LEFT JOIN {$clientsTable} cl ON cl.client_id = c.client_id
 LEFT JOIN {$agentsTable} ia ON ia.agent_id = c.initial_class_agent
 LEFT JOIN {$agentsTable} pa ON pa.agent_id = c.class_agent
-JOIN LATERAL (
-    SELECT id, operation, changed_at
+LEFT JOIN LATERAL (
+    SELECT log_id, operation, changed_at
     FROM {$logsTable} log
     WHERE log.class_id = c.class_id
       AND LOWER(log.operation) IN ('insert', 'update')

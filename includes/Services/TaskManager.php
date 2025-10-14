@@ -89,7 +89,7 @@ final class TaskManager
     private function fetchOperation(int $logId): string
     {
         $table = $this->buildTableName();
-        $sql = "SELECT operation FROM {$table} WHERE id = :id LIMIT 1";
+        $sql = "SELECT operation FROM {$table} WHERE log_id = :id LIMIT 1";
 
         $stmt = $this->pdo->prepare($sql);
         if ($stmt === false) {
@@ -112,7 +112,7 @@ final class TaskManager
     public function getTasksForLog(int $logId): TaskCollection
     {
         $table = $this->buildTableName();
-        $sql = "SELECT tasks FROM {$table} WHERE id = :id LIMIT 1";
+        $sql = "SELECT tasks FROM {$table} WHERE log_id = :id LIMIT 1";
 
         $stmt = $this->pdo->prepare($sql);
         if ($stmt === false) {
@@ -140,7 +140,7 @@ final class TaskManager
     public function saveTasksForLog(int $logId, TaskCollection $tasks): void
     {
         $table = $this->buildTableName();
-        $sql = "UPDATE {$table} SET tasks = :tasks WHERE id = :id";
+        $sql = "UPDATE {$table} SET tasks = :tasks WHERE log_id = :id";
 
         $stmt = $this->pdo->prepare($sql);
         if ($stmt === false) {
