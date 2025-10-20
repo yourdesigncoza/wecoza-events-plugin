@@ -25,8 +25,8 @@ final class SettingsPage
     private const OPTION_GROUP = 'wecoza_events_notifications';
     private const PAGE_SLUG = 'wecoza-events-notifications';
     private const SECTION_ID = 'wecoza_events_notifications_section';
-    private const OPTION_INSERT = 'wecoza_notify_insert_email';
-    private const OPTION_UPDATE = 'wecoza_notify_update_email';
+    private const OPTION_INSERT = 'wecoza_notification_class_created';
+    private const OPTION_UPDATE = 'wecoza_notification_class_updated';
 
     public static function register(): void
     {
