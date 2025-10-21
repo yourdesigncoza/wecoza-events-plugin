@@ -101,6 +101,146 @@ define('WECOZA_NOTIFY_INSERT_EMAIL', 'insert@example.com');
 define('WECOZA_NOTIFY_UPDATE_EMAIL', 'update@example.com');
 ```
 
+## How Triggers Are Invoked
+
+The WeCoza Events Plugin notification system works through a **multi-layered automated process** involving database triggers, WordPress cron, and email processing.
+
+### **1. Database Layer - Real-time Triggers**
+
+**When a class is created/updated:**
+```sql
+-- PostgreSQL Trigger
+CREATE TRIGGER classes_log_insert_update 
+AFTER INSERT OR UPDATE ON public.classes 
+FOR EACH ROW EXECUTE FUNCTION public.log_class_change();
+```
+
+**Trigger Function Actions:**
+1. **Creates Log Entry**: Inserts a new row into `class_change_logs` table
+2. **Sends PostgreSQL Notification**: Uses `pg_notify()` to broadcast real-time event
+3. **Calculates Diff**: For UPDATE operations, computes JSON diff of changed fields
+4. **Stores Complete Data**: Saves full row snapshot in `new_row` JSONB field
+
+**pg_notify() Call:**
+```sql
+PERFORM pg_notify(
+    'class_change_channel',
+    json_build_object(
+        'operation', op,
+        'class_id', NEW.class_id,
+        'class_code', NEW.class_code,
+        'class_subject', NEW.class_subject,
+        'changed_at', event_time,
+        'diff', diff
+    )::text
+);
+```
+
+### **2. WordPress Cron Layer - Scheduled Processing**
+
+**Cron Schedule Setup:**
+```php
+// Plugin activation registers custom schedule
+add_filter('cron_schedules', 'wecoza_events_register_schedule');
+register_activation_hook(__FILE__, 'wecoza_events_schedule_notifications');
+
+// Creates 5-minute interval schedule
+'schedules' => [
+    'wecoza_events_five_minutes' => [
+        'interval' => 300, // 5 minutes
+        'display' => 'Every Five Minutes (WeCoza Events)'
+    ]
+]
+```
+
+**Cron Event:**
+```php
+// Scheduled action that runs every 5 minutes
+add_action('wecoza_events_process_notifications', 'wecoza_events_run_notification_processor');
+
+function wecoza_events_run_notification_processor(): void {
+    try {
+        \WeCozaEvents\Services\NotificationProcessor::boot()->process();
+    } catch (\Throwable $exception) {
+        error_log('WeCoza notification processing failed: ' . $exception->getMessage());
+    }
+}
+```
+
+### **3. NotificationProcessor - Email Processing**
+
+**Processing Logic:**
+```php
+public function process(): void {
+    // 1. Get last processed log ID
+    $lastProcessed = (int) get_option('wecoza_last_notified_log_id', 0);
+    
+    // 2. Fetch unprocessed log entries
+    $rows = $this->fetchRows($lastProcessed);
+    
+    // 3. Process each log entry
+    foreach ($rows as $row) {
+        $operation = strtoupper((string) ($row['operation'] ?? ''));
+        $recipient = $this->settings->getRecipientForOperation($operation);
+        
+        if ($recipient !== null) {
+            // 4. Build and send email
+            $mailData = $this->buildMailPayload($row, $operation);
+            $sent = wp_mail($recipient, $subject, $body, $headers);
+        }
+    }
+    
+    // 5. Update last processed ID
+    update_option('wecoza_last_notified_log_id', $latestId, false);
+}
+```
+
+### **4. Complete Flow Timeline**
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
+│ Class Created   │    │ PostgreSQL       │    │ WordPress Cron      │
+│ or Updated      │───▶│ Trigger Fires    │───▶│ (Every 5 minutes)   │
+│ (classes table) │    │ - Logs change    │    │ - Checks for new    │
+└─────────────────┘    │ - pg_notify()    │    │   log entries       │
+                       └──────────────────┘    │ - Sends emails      │
+                                                └─────────────────────┘
+```
+
+### **5. Invocation Triggers Summary**
+
+| Layer | Trigger | Frequency | Purpose |
+|-------|---------|-----------|---------|
+| **Database** | `AFTER INSERT/UPDATE` | Immediate | Create log entry, real-time notification |
+| **WordPress** | Cron Job | Every 5 minutes | Process pending log entries |
+| **Plugin** | `NotificationProcessor::process()` | On cron run | Build and send emails |
+
+### **6. Manual Invocation (For Testing)**
+
+```php
+// Direct invocation for testing
+try {
+    $processor = \WeCozaEvents\Services\NotificationProcessor::boot();
+    $processor->process();
+    echo "Notifications processed successfully";
+} catch (Exception $e) {
+    echo "Processing failed: " . $e->getMessage();
+}
+```
+
+### **7. Real-time vs Batch Processing**
+
+**Real-time Component:**
+- Database `pg_notify()` provides immediate event broadcasting
+- Could be used by external applications listening to PostgreSQL channels
+
+**Batch Processing Component:**
+- Email sending handled every 5 minutes via WordPress cron
+- Prevents email overload from rapid successive changes
+- Allows for retry logic and error handling
+
+This hybrid approach ensures both immediate responsiveness (via database triggers) and reliable email delivery (via scheduled batch processing).
+
 ## Usage
 
 ### Shortcode Integration

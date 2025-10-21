@@ -203,7 +203,7 @@ echo $assets;
                                         <div class="row g-4 align-items-start">
                                             <?php if (!$class['manageable']): ?>
                                                 <div class="col-12">
-                                                    <div class="alert alert-warning border-warning mb-0" role="alert">
+                                                    <div class="alert alert-subtle-warning mb-0" role="alert">
                                                         <?php echo esc_html__('Tasks are not yet available for this class.', 'wecoza-events'); ?>
                                                     </div>
                                                 </div>

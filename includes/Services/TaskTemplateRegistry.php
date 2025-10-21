@@ -27,9 +27,9 @@ final class TaskTemplateRegistry
     {
         return [
             'insert' => [
-                ['id' => 'create-class', 'label' => 'Create new class'],
+               //  ['id' => 'create-class', 'label' => 'Create new class'],
+                ['id' => 'agent-order', 'label' => 'Agent order Number'],
                 ['id' => 'load-learners', 'label' => 'Load learners'],
-                ['id' => 'agent-order', 'label' => 'Agent order'],
                 ['id' => 'training-schedule', 'label' => 'Training schedule'],
                 ['id' => 'material-delivery', 'label' => 'Material delivery'],
                 ['id' => 'agent-paperwork', 'label' => 'Agent paperwork'],
