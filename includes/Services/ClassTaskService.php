@@ -36,15 +36,13 @@ final class ClassTaskService
         $items = [];
         foreach ($rows as $row) {
             $logId = isset($row['log_id']) ? (int) $row['log_id'] : null;
-            $operation = strtolower((string) ($row['operation'] ?? 'insert')) ?: 'insert';
-
             if ($logId === null || $logId <= 0) {
-                $tasks = $this->templateRegistry->getTemplateForOperation($operation);
-                $manageable = false;
-            } else {
-                $tasks = $this->taskManager->getTasksWithTemplate($logId, $operation);
-                $manageable = true;
+                // Skip classes without a log entry; they cannot be managed yet.
+                continue;
             }
+
+            $operation = strtolower((string) ($row['operation'] ?? 'insert')) ?: 'insert';
+            $tasks = $this->taskManager->getTasksWithTemplate($logId, $operation);
 
             if (!$tasks instanceof TaskCollection) {
                 throw new RuntimeException('Invalid tasks payload.');
@@ -55,7 +53,7 @@ final class ClassTaskService
                 'tasks' => $tasks,
                 'log_id' => $logId,
                 'operation' => $operation,
-                'manageable' => $manageable,
+                'manageable' => true,
                 'open_count' => count($tasks->open()),
             ];
         }

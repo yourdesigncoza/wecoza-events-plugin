@@ -413,8 +413,21 @@ final class ClassTaskPresenter
                 $payload['reopen_label'] = __('Reopen', 'wecoza-events');
                 $completed[] = $payload;
             } else {
-                $payload['note_label'] = __('Completion note', 'wecoza-events');
-                $payload['note_placeholder'] = __('Note (optional)', 'wecoza-events');
+                $isAgentOrderTask = $task->getId() === 'agent-order';
+                if ($isAgentOrderTask) {
+                    $payload['note_label'] = __('Order number', 'wecoza-events');
+                    $payload['note_placeholder'] = __('Order Number Required', 'wecoza-events');
+                    $payload['note_required'] = true;
+                    $payload['note_required_message'] = __(
+                        'Enter the agent order number before completing this task.',
+                        'wecoza-events'
+                    );
+                } else {
+                    $payload['note_label'] = __('Completion note', 'wecoza-events');
+                    $payload['note_placeholder'] = __('Note (optional)', 'wecoza-events');
+                    $payload['note_required'] = false;
+                }
+
                 $payload['complete_label'] = __('Complete', 'wecoza-events');
                 $open[] = $payload;
             }

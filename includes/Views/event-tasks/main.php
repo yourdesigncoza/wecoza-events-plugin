@@ -198,16 +198,17 @@ echo $assets;
                                 data-panel-id="task-panel-<?php echo esc_attr((string) $class['id']); ?>"
                                 hidden
                             >
+                            
                                 <td colspan="11" class="bg-body-tertiary">
                                     <div class="p-4 wecoza-task-panel-content" data-log-id="<?php echo esc_attr((string) ($class['log_id'] ?? '')); ?>" data-class-id="<?php echo esc_attr((string) $class['id']); ?>" data-manageable="<?php echo $class['manageable'] ? '1' : '0'; ?>">
                                         <div class="row g-4 align-items-start">
-                                            <?php if (!$class['manageable']): ?>
+                                            <?php /* if (!$class['manageable']): ?>
                                                 <div class="col-12">
                                                     <div class="alert alert-subtle-warning mb-0" role="alert">
                                                         <?php echo esc_html__('Tasks are not yet available for this class.', 'wecoza-events'); ?>
                                                     </div>
                                                 </div>
-                                            <?php endif; ?>
+                                            <?php endif; */ ?>
 
                                             <div class="col-12 col-lg-6">
                                                 <div class="card shadow-none h-100">
@@ -219,23 +220,34 @@ echo $assets;
                                                             <?php foreach ($class['tasks']['open'] as $task): ?>
                                                                 <li class="list-group-item d-flex flex-row align-items-center justify-content-between gap-2 m-1" data-task-id="<?php echo esc_attr($task['id']); ?>">
                                                                     <div class="fw-semibold text-body w-30"><?php echo esc_html($task['label']); ?></div>
-                                                                    <div class="d-flex flex-row gap-2 align-items-center flex-grow-1">
-                                                                        <label class="visually-hidden" for="wecoza-note-<?php echo esc_attr($class['id'] . '-' . $task['id']); ?>"><?php echo esc_html($task['note_label']); ?></label>
-                                                                        <input
-                                                                            id="wecoza-note-<?php echo esc_attr($class['id'] . '-' . $task['id']); ?>"
-                                                                            class="form-control form-control-sm wecoza-task-note"
-                                                                            type="text"
-                                                                            placeholder="<?php echo esc_attr($task['note_placeholder']); ?>"
-                                                                            <?php echo $class['manageable'] ? '' : 'disabled'; ?>
-                                                                        >
-                                                                        <button
-                                                                            type="button"
-                                                                            class="btn btn-subtle-success btn-sm wecoza-task-action"
-                                                                            data-action="complete"
-                                                                            <?php echo $class['manageable'] ? '' : 'disabled'; ?>
-                                                                        >
-                                                                            <?php echo esc_html($task['complete_label']); ?>
-                                                                        </button>
+                                                                    <div class="d-flex flex-row gap-2 align-items-start flex-grow-1">
+                                                                        <div class="flex-grow-1">
+                                                                            <label class="visually-hidden" for="wecoza-note-<?php echo esc_attr($class['id'] . '-' . $task['id']); ?>"><?php echo esc_html($task['note_label']); ?></label>
+                                                                            <input
+                                                                                id="wecoza-note-<?php echo esc_attr($class['id'] . '-' . $task['id']); ?>"
+                                                                                class="form-control form-control-sm wecoza-task-note"
+                                                                                type="text"
+                                                                                placeholder="<?php echo esc_attr($task['note_placeholder']); ?>"
+                                                                                data-note-required="<?php echo !empty($task['note_required']) ? '1' : '0'; ?>"
+                                                                                <?php echo !empty($task['note_required']) ? 'aria-required="true"' : ''; ?>
+                                                                                <?php echo $class['manageable'] ? '' : 'disabled'; ?>
+                                                                            >
+                                                                            <?php if (!empty($task['note_required_message'])): ?>
+                                                                                <div class="invalid-feedback small">
+                                                                                    <?php echo esc_html($task['note_required_message']); ?>
+                                                                                </div>
+                                                                            <?php endif; ?>
+                                                                        </div>
+                                                                        <div class="d-flex">
+                                                                            <button
+                                                                                type="button"
+                                                                                class="btn btn-subtle-success btn-sm wecoza-task-action"
+                                                                                data-action="complete"
+                                                                                <?php echo $class['manageable'] ? '' : 'disabled'; ?>
+                                                                            >
+                                                                                <?php echo esc_html($task['complete_label']); ?>
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
                                                                 </li>
                                                             <?php endforeach; ?>
@@ -289,11 +301,13 @@ echo $assets;
                                 </td>
                             </tr>
                         <?php endforeach; ?>
+                        
                         <tr data-role="no-results" hidden>
                             <td colspan="11" class="text-center py-4 text-body-secondary">
                                 <?php echo esc_html__('No classes match the current filters.', 'wecoza-events'); ?>
                             </td>
                         </tr>
+                        
                     </tbody>
                 </table>
             </div>

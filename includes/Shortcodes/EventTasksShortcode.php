@@ -354,6 +354,28 @@ final class EventTasksShortcode
                     summaryRow.setAttribute('data-search-index', searchIndex);
                 }
 
+                function requiresNoteValue(input) {
+                    return !!input && input.dataset.noteRequired === '1';
+                }
+
+                function showNoteValidationError(input) {
+                    if (!input) {
+                        return;
+                    }
+
+                    input.classList.add('is-invalid');
+                    input.setAttribute('aria-invalid', 'true');
+                }
+
+                function clearNoteValidationError(input) {
+                    if (!input) {
+                        return;
+                    }
+
+                    input.classList.remove('is-invalid');
+                    input.removeAttribute('aria-invalid');
+                }
+
                 function ready(callback) {
                     if (document.readyState === 'loading') {
                         document.addEventListener('DOMContentLoaded', function onReady() {
@@ -367,13 +389,23 @@ final class EventTasksShortcode
 
                 function buildOpenTaskHtml(task, classId, disabled) {
                     var noteId = 'wecoza-note-' + classId + '-' + task.id;
+                    var noteRequiredAttr = task.note_required ? ' data-note-required="1"' : ' data-note-required="0"';
+                    var ariaRequiredAttr = task.note_required ? ' aria-required="true"' : '';
+                    var requiredFeedback = task.note_required_message
+                        ? '<div class="invalid-feedback small">' + escapeHtml(task.note_required_message) + '</div>'
+                        : '';
                     return '' +
                         '<li class="list-group-item d-flex flex-row align-items-center justify-content-between gap-2 m-1" data-task-id="' + escapeHtml(task.id) + '">' +
                             '<div class="fw-semibold text-body w-30">' + escapeHtml(task.label) + '</div>' +
-                            '<div class="d-flex flex-row gap-2 align-items-center flex-grow-1">' +
-                                '<label class="visually-hidden" for="' + escapeHtml(noteId) + '">' + escapeHtml(task.note_label) + '</label>' +
-                                '<input id="' + escapeHtml(noteId) + '" class="form-control form-control-sm wecoza-task-note" type="text" placeholder="' + escapeHtml(task.note_placeholder) + '" ' + (disabled ? 'disabled' : '') + '>' +
-                                '<button type="button" class="btn btn-subtle-success btn-sm wecoza-task-action" data-action="complete" ' + (disabled ? 'disabled' : '') + '>' + escapeHtml(task.complete_label) + '</button>' +
+                            '<div class="d-flex flex-row gap-2 align-items-start flex-grow-1">' +
+                                '<div class="flex-grow-1">' +
+                                    '<label class="visually-hidden" for="' + escapeHtml(noteId) + '">' + escapeHtml(task.note_label) + '</label>' +
+                                    '<input id="' + escapeHtml(noteId) + '" class="form-control form-control-sm wecoza-task-note" type="text" placeholder="' + escapeHtml(task.note_placeholder) + '"' + noteRequiredAttr + ariaRequiredAttr + ' ' + (disabled ? 'disabled' : '') + '>' +
+                                    requiredFeedback +
+                                '</div>' +
+                                '<div class="d-flex">' +
+                                    '<button type="button" class="btn btn-subtle-success btn-sm wecoza-task-action" data-action="complete" ' + (disabled ? 'disabled' : '') + '>' + escapeHtml(task.complete_label) + '</button>' +
+                                '</div>' +
                             '</div>' +
                         '</li>';
                 }
@@ -545,6 +577,8 @@ final class EventTasksShortcode
                         return;
                     }
 
+                    var noteField = taskItem.querySelector('.wecoza-task-note');
+
                     var formData = new FormData();
                     formData.append('action', 'wecoza_events_task_update');
                     formData.append('nonce', wrapper.dataset.nonce);
@@ -553,7 +587,21 @@ final class EventTasksShortcode
                     formData.append('task_action', button.dataset.action || '');
 
                     if (button.dataset.action === 'complete') {
-                        var noteField = taskItem.querySelector('.wecoza-task-note');
+                        var requiresNote = requiresNoteValue(noteField);
+                        var noteValue = noteField ? noteField.value.trim() : '';
+
+                        if (requiresNote && noteValue === '') {
+                            showNoteValidationError(noteField);
+                            if (noteField) {
+                                noteField.focus();
+                            }
+                            return;
+                        }
+
+                        if (noteField) {
+                            clearNoteValidationError(noteField);
+                        }
+
                         formData.append('note', noteField ? noteField.value : '');
                     }
 
@@ -594,6 +642,22 @@ final class EventTasksShortcode
                     }).finally(function() {
                         button.disabled = false;
                     });
+                });
+
+                document.addEventListener('input', function(event) {
+                    var input = event.target;
+                    if (!input || !input.classList || !input.classList.contains('wecoza-task-note')) {
+                        return;
+                    }
+
+                    if (!requiresNoteValue(input)) {
+                        clearNoteValidationError(input);
+                        return;
+                    }
+
+                    if (input.value.trim() !== '') {
+                        clearNoteValidationError(input);
+                    }
                 });
             })();
         </script>

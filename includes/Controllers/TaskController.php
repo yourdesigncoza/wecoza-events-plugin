@@ -15,6 +15,7 @@ use function current_time;
 use function get_current_user_id;
 use function in_array;
 use function is_user_logged_in;
+use function trim;
 
 final class TaskController
 {
@@ -67,12 +68,13 @@ final class TaskController
         try {
             if ($taskAction === 'complete') {
                 $note = $this->request->getPostString('note');
+                $note = $note !== null ? trim($note) : null;
                 $tasks = $this->manager->markTaskCompleted(
                     $logId,
                     $taskId,
                     get_current_user_id(),
                     current_time('mysql', true),
-                    $note !== null && $note !== '' ? $note : null
+                    $note
                 );
             } else {
                 $tasks = $this->manager->reopenTask($logId, $taskId);

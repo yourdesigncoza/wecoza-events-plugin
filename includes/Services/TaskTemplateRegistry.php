@@ -28,7 +28,7 @@ final class TaskTemplateRegistry
         return [
             'insert' => [
                //  ['id' => 'create-class', 'label' => 'Create new class'],
-                ['id' => 'agent-order', 'label' => 'Agent order Number'],
+                ['id' => 'agent-order', 'label' => 'Agent order Number'], // Should not be able to mark as complete without order number
                 ['id' => 'load-learners', 'label' => 'Load learners'],
                 ['id' => 'training-schedule', 'label' => 'Training schedule'],
                 ['id' => 'material-delivery', 'label' => 'Material delivery'],

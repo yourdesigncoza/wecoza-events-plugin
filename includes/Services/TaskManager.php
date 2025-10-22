@@ -9,11 +9,16 @@ use WeCozaEvents\Database\Connection;
 use WeCozaEvents\Models\TaskCollection;
 
 use JsonException;
+use function __;
 use function is_array;
 use function is_string;
 use function json_decode;
 use function json_encode;
+use function mb_strlen;
+use function mb_substr;
 use function preg_match;
+use function preg_replace;
+use function trim;
 use const JSON_THROW_ON_ERROR;
 
 final class TaskManager
@@ -34,25 +39,30 @@ final class TaskManager
         $operation = $operation ?? $this->fetchOperation($logId);
 
         $existing = $this->getTasksForLog($logId);
-        $template = $this->registry->getTemplateForOperation($operation);
+        $needsPersist = false;
 
         if ($existing->isEmpty()) {
-            if (!$template->isEmpty()) {
-                $this->saveTasksForLog($logId, $template);
+            $classId = $this->fetchClassIdForLog($logId);
+            $previous = $this->getPreviousTasksSnapshot($classId, $logId);
+            if ($previous !== null && !$previous->isEmpty()) {
+                $existing = $previous;
+                $needsPersist = true;
+            } else {
+                $existing = $this->registry->getTemplateForOperation('insert');
+                $needsPersist = true;
             }
-
-            return $template;
         }
 
-        $hasChanges = false;
+        $template = $this->registry->getTemplateForOperation($operation);
+
         foreach ($template->all() as $task) {
             if (!$existing->has($task->getId())) {
                 $existing->add($task);
-                $hasChanges = true;
+                $needsPersist = true;
             }
         }
 
-        if ($hasChanges) {
+        if ($needsPersist) {
             $this->saveTasksForLog($logId, $existing);
         }
 
@@ -66,9 +76,25 @@ final class TaskManager
         string $timestamp,
         ?string $note = null
     ): TaskCollection {
+        $cleanNote = $note !== null ? trim($note) : null;
         $tasks = $this->getTasksWithTemplate($logId);
 
-        $task = $tasks->get($taskId)->markCompleted($userId, $timestamp, $note);
+        if ($this->requiresNote($taskId)) {
+            $orderNumber = $this->normaliseOrderNumber($cleanNote ?? '');
+            if ($orderNumber === '') {
+                throw new RuntimeException(__('An order number is required before completing this task.', 'wecoza-events'));
+            }
+
+            $classId = $this->fetchClassIdForLog($logId);
+            $this->updateClassOrderNumber($classId, $orderNumber);
+            $cleanNote = $orderNumber;
+        }
+
+        $task = $tasks->get($taskId)->markCompleted(
+            $userId,
+            $timestamp,
+            $cleanNote === null || $cleanNote === '' ? null : $cleanNote
+        );
         $tasks->replace($task);
         $this->saveTasksForLog($logId, $tasks);
 
@@ -180,5 +206,117 @@ final class TaskManager
         } catch (JsonException $exception) {
             throw new RuntimeException('Failed to encode tasks payload: ' . $exception->getMessage(), 0, $exception);
         }
+    }
+
+    private function getPreviousTasksSnapshot(int $classId, int $currentLogId): ?TaskCollection
+    {
+        $table = $this->buildTableName();
+        $sql = <<<SQL
+SELECT tasks
+FROM {$table}
+WHERE class_id = :class_id
+  AND log_id <> :log_id
+  AND tasks IS NOT NULL
+  AND jsonb_typeof(tasks) = 'array'
+  AND jsonb_array_length(tasks) > 0
+ORDER BY changed_at DESC, log_id DESC
+LIMIT 1
+SQL;
+
+        $stmt = $this->pdo->prepare($sql);
+        if ($stmt === false) {
+            throw new RuntimeException('Failed to prepare previous tasks lookup.');
+        }
+
+        $stmt->bindValue(':class_id', $classId, PDO::PARAM_INT);
+        $stmt->bindValue(':log_id', $currentLogId, PDO::PARAM_INT);
+
+        if (!$stmt->execute()) {
+            throw new RuntimeException('Failed to execute previous tasks lookup.');
+        }
+
+        $payload = $stmt->fetchColumn();
+        if ($payload === false || $payload === null) {
+            return null;
+        }
+
+        $decoded = $this->decodeJson((string) $payload);
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        return TaskCollection::fromArray($decoded);
+    }
+
+    private function requiresNote(string $taskId): bool
+    {
+        return $taskId === 'agent-order';
+    }
+
+    private function fetchClassIdForLog(int $logId): int
+    {
+        $table = $this->buildTableName();
+        $sql = "SELECT class_id FROM {$table} WHERE log_id = :id LIMIT 1";
+
+        $stmt = $this->pdo->prepare($sql);
+        if ($stmt === false) {
+            throw new RuntimeException('Failed to prepare class lookup.');
+        }
+
+        $stmt->bindValue(':id', $logId, PDO::PARAM_INT);
+        if (!$stmt->execute()) {
+            throw new RuntimeException('Failed to execute class lookup.');
+        }
+
+        $classId = $stmt->fetchColumn();
+        if ($classId === false || $classId === null) {
+            throw new RuntimeException('Unable to determine class for the supplied task.');
+        }
+
+        return (int) $classId;
+    }
+
+    private function updateClassOrderNumber(int $classId, string $orderNumber): void
+    {
+        $table = $this->buildClassesTableName();
+        $sql = "UPDATE {$table} SET order_nr = :order_nr, updated_at = now() WHERE class_id = :class_id";
+
+        $stmt = $this->pdo->prepare($sql);
+        if ($stmt === false) {
+            throw new RuntimeException('Failed to prepare order number update.');
+        }
+
+        $stmt->bindValue(':class_id', $classId, PDO::PARAM_INT);
+        $stmt->bindValue(':order_nr', $orderNumber, PDO::PARAM_STR);
+
+        if (!$stmt->execute()) {
+            throw new RuntimeException('Failed to update class order number.');
+        }
+    }
+
+    private function buildClassesTableName(): string
+    {
+        if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $this->schema)) {
+            throw new RuntimeException('Invalid schema name supplied.');
+        }
+
+        return sprintf('"%s".classes', $this->schema);
+    }
+
+    private function normaliseOrderNumber(string $value): string
+    {
+        $value = trim($value);
+        $value = preg_replace('/[[:cntrl:]]+/', '', $value) ?? '';
+        $value = preg_replace('/\s+/', ' ', $value) ?? '';
+
+        if ($value === '') {
+            return '';
+        }
+
+        if (mb_strlen($value) > 100) {
+            $value = mb_substr($value, 0, 100);
+        }
+
+        return $value;
     }
 }
