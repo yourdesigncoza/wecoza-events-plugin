@@ -26,7 +26,7 @@ echo $assets;
     data-complete-badge-class="badge-phoenix-secondary"
     data-class-filter="<?php echo esc_attr($classSpecific ? (string) $classIdFilter : ''); ?>"
 >
-    <div class="card shadow-none my-3">
+    <div class="card shadow-none my-3 mt-5">
         <div class="card-header p-3 border-bottom">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -35,7 +35,7 @@ echo $assets;
                         echo esc_html(
                             $classSpecific
                                 ? sprintf(__('Tasks for Class #%d', 'wecoza-events'), (int) $classIdFilter)
-                                : __('Class Tasks', 'wecoza-events')
+                                : __('Classes Open Tasks', 'wecoza-events')
                         );
                         ?>
                     </h4>
