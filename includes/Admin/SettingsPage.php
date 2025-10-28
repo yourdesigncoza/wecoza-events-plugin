@@ -39,6 +39,7 @@ final class SettingsPage
     private const SECTION_ID = 'wecoza_events_notifications_section';
     private const OPTION_INSERT = 'wecoza_notification_class_created';
     private const OPTION_UPDATE = 'wecoza_notification_class_updated';
+    private const OPTION_MATERIAL = 'wecoza_notification_material_delivery';
     private const SECTION_AI = 'wecoza_events_ai_summaries_section';
     private const OPTION_AI_ENABLED = OpenAIConfig::OPTION_ENABLED;
     private const OPTION_AI_API_KEY = OpenAIConfig::OPTION_API_KEY;
@@ -62,6 +63,10 @@ final class SettingsPage
         ]);
 
         register_setting(self::OPTION_GROUP, self::OPTION_UPDATE, [
+            'sanitize_callback' => [self::class, 'sanitizeEmail'],
+        ]);
+
+        register_setting(self::OPTION_GROUP, self::OPTION_MATERIAL, [
             'sanitize_callback' => [self::class, 'sanitizeEmail'],
         ]);
 
@@ -97,6 +102,14 @@ final class SettingsPage
             self::OPTION_UPDATE,
             esc_html__('Update Class notifications email', 'wecoza-events'),
             [self::class, 'renderUpdateField'],
+            self::PAGE_SLUG,
+            self::SECTION_ID
+        );
+
+        add_settings_field(
+            self::OPTION_MATERIAL,
+            esc_html__('Material Delivery notifications email', 'wecoza-events'),
+            [self::class, 'renderMaterialField'],
             self::PAGE_SLUG,
             self::SECTION_ID
         );
@@ -138,6 +151,11 @@ final class SettingsPage
     public static function renderUpdateField(): void
     {
         self::renderEmailField(self::OPTION_UPDATE, esc_html__('Address to notify when a class is updated.', 'wecoza-events'));
+    }
+
+    public static function renderMaterialField(): void
+    {
+        self::renderEmailField(self::OPTION_MATERIAL, esc_html__('Address to notify for material delivery reminders (7 days and 5 days before class start).', 'wecoza-events'));
     }
 
     public static function renderAiSectionIntro(): void

@@ -144,7 +144,7 @@ final class NotificationProcessor
             if (!$sent) {
                 error_log(sprintf('WeCoza notification failed for row %d to %s', (int) $row['log_id'], $recipient));
             } else {
-                error_log(sprintf('WeCoza notification sent for row %d to %s', (int) $row['log_id'], $recipient));
+                // error_log(sprintf('WeCoza notification sent for row %d to %s', (int) $row['log_id'], $recipient));
             }
             }
 
