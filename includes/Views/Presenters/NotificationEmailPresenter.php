@@ -34,7 +34,9 @@ final class NotificationEmailPresenter
         $html = $this->renderHtml($context);
         $plain = trim(wp_strip_all_tags($html));
 
-        $body = $html . "\n\n<!-- Plain text fallback -->\n<pre style=\"font-family: monospace; white-space: pre-wrap;\">" . esc_html($plain) . '</pre>';
+        $body = $html;
+        
+        // $body = $html . "\n\n<!-- Plain text fallback -->\n<pre style=\"font-family: monospace; white-space: pre-wrap;\">" . esc_html($plain) . '</pre>';
 
         return [
             'subject' => $subject,

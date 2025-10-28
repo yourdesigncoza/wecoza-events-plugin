@@ -70,10 +70,10 @@ add_action('wecoza_events_process_notifications', 'wecoza_events_run_notificatio
 
 function wecoza_events_register_schedule(array $schedules): array
 {
-    if (!isset($schedules['wecoza_events_five_minutes'])) {
-        $schedules['wecoza_events_five_minutes'] = [
-            'interval' => 300,
-            'display' => __('Every Five Minutes (WeCoza Events)', 'wecoza-events'),
+    if (!isset($schedules['wecoza_events_one_minute'])) {
+        $schedules['wecoza_events_one_minute'] = [
+            'interval' => 60,
+            'display' => __('Every Minute (WeCoza Events)', 'wecoza-events'),
         ];
     }
 
@@ -83,7 +83,7 @@ function wecoza_events_register_schedule(array $schedules): array
 function wecoza_events_schedule_notifications(): void
 {
     if (!wp_next_scheduled('wecoza_events_process_notifications')) {
-        wp_schedule_event(time() + 60, 'wecoza_events_five_minutes', 'wecoza_events_process_notifications');
+        wp_schedule_event(time() + 60, 'wecoza_events_one_minute', 'wecoza_events_process_notifications');
     }
 }
 

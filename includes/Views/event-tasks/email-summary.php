@@ -22,12 +22,24 @@ $metrics = [
     'Error Code' => $summary['error_code'] ?? null,
     'Error Message' => $summary['error_message'] ?? null,
 ];
-$diffJson = wp_json_encode($payload['diff'] ?? [], JSON_PRETTY_PRINT);
-$newRowJson = wp_json_encode($payload['new_row'] ?? [], JSON_PRETTY_PRINT);
-$oldRowJson = wp_json_encode($payload['old_row'] ?? [], JSON_PRETTY_PRINT);
+// $diffJson = wp_json_encode($payload['diff'] ?? [], JSON_PRETTY_PRINT);
+// $newRowJson = wp_json_encode($payload['new_row'] ?? [], JSON_PRETTY_PRINT);
+// $oldRowJson = wp_json_encode($payload['old_row'] ?? [], JSON_PRETTY_PRINT);
 ?>
 <div style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; color: #1f2933;">
     <h1 style="font-size: 20px; margin-bottom: 16px;">WeCoza Class Change Notification</h1>
+
+        <section style="margin-bottom: 20px;">
+        <h2 style="font-size: 16px; margin-bottom: 8px;">Change Metadata</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+            <?php foreach ($metadata as $label => $value): ?>
+                <tr>
+                    <th style="text-align: left; padding: 6px; background: #e5e7eb; width: 160px;"><?php echo esc_html($label); ?></th>
+                    <td style="padding: 6px; border-bottom: 1px solid #e5e7eb;"><?php echo esc_html((string) $value); ?></td>
+                </tr>
+            <?php endforeach; ?>
+        </table>
+    </section>
 
     <section style="margin-bottom: 20px;">
         <h2 style="font-size: 16px; margin-bottom: 8px;">AI Summary</h2>
@@ -53,18 +65,6 @@ $oldRowJson = wp_json_encode($payload['old_row'] ?? [], JSON_PRETTY_PRINT);
     </section>
 
     <section style="margin-bottom: 20px;">
-        <h2 style="font-size: 16px; margin-bottom: 8px;">Change Metadata</h2>
-        <table style="width: 100%; border-collapse: collapse;">
-            <?php foreach ($metadata as $label => $value): ?>
-                <tr>
-                    <th style="text-align: left; padding: 6px; background: #e5e7eb; width: 160px;"><?php echo esc_html($label); ?></th>
-                    <td style="padding: 6px; border-bottom: 1px solid #e5e7eb;"><?php echo esc_html((string) $value); ?></td>
-                </tr>
-            <?php endforeach; ?>
-        </table>
-    </section>
-
-    <section style="margin-bottom: 20px;">
         <h2 style="font-size: 16px; margin-bottom: 8px;">AI Generation Details</h2>
         <table style="width: 100%; border-collapse: collapse;">
             <?php foreach ($metrics as $label => $value): ?>
@@ -75,25 +75,6 @@ $oldRowJson = wp_json_encode($payload['old_row'] ?? [], JSON_PRETTY_PRINT);
                 </tr>
             <?php endforeach; ?>
         </table>
-    </section>
-
-    <section style="margin-bottom: 20px;">
-        <h2 style="font-size: 16px; margin-bottom: 8px;">Audit Trail</h2>
-        <p style="font-size: 13px; color: #6b7280; margin: 0 0 12px 0;">Field names are shown in human-readable format for clarity.</p>
-        <details style="margin-bottom: 12px;">
-            <summary style="cursor: pointer;">Diff Payload</summary>
-            <pre style="background: #0b0f19; color: #e5e9f0; padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap;"><?php echo esc_html((string) $diffJson); ?></pre>
-        </details>
-        <details style="margin-bottom: 12px;">
-            <summary style="cursor: pointer;">New Row Snapshot</summary>
-            <pre style="background: #0b0f19; color: #e5e9f0; padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap;"><?php echo esc_html((string) $newRowJson); ?></pre>
-        </details>
-        <?php if (!empty($oldRowJson) && $oldRowJson !== '[]'): ?>
-            <details>
-                <summary style="cursor: pointer;">Previous Row Snapshot</summary>
-                <pre style="background: #0b0f19; color: #e5e9f0; padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap;"><?php echo esc_html((string) $oldRowJson); ?></pre>
-            </details>
-        <?php endif; ?>
     </section>
 
     <p style="font-size: 12px; color: #6b7280;">If the summary looks incorrect, reply with the log ID and we will investigate.</p>
