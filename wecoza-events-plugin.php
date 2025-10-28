@@ -27,6 +27,7 @@ require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Admin/SettingsPage.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/NotificationSettings.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/NotificationProcessor.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/MaterialNotificationService.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/MaterialTrackingDashboardService.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/TaskTemplateRegistry.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/TaskManager.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/ClassTaskService.php';
@@ -41,10 +42,13 @@ require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Views/TemplateRenderer.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Views/Presenters/ClassTaskPresenter.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Views/Presenters/NotificationEmailPresenter.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Views/Presenters/AISummaryPresenter.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Views/Presenters/MaterialTrackingPresenter.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Shortcodes/EventTasksShortcode.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Shortcodes/AISummaryShortcode.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Shortcodes/MaterialTrackingShortcode.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Controllers/JsonResponder.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Controllers/TaskController.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Controllers/MaterialTrackingController.php';
 
 if (defined('WP_CLI') && WP_CLI) {
     require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/CLI/AISummaryStatusCommand.php';
@@ -67,6 +71,7 @@ if (defined('WP_CLI') && WP_CLI) {
         \WeCozaEvents\Support\Container::wordpressRequest()
     )
 );
+\WeCozaEvents\Shortcodes\MaterialTrackingShortcode::register();
 \WeCozaEvents\Admin\SettingsPage::register();
 \WeCozaEvents\Controllers\TaskController::register(
     new \WeCozaEvents\Controllers\TaskController(
@@ -76,6 +81,7 @@ if (defined('WP_CLI') && WP_CLI) {
         \WeCozaEvents\Support\Container::jsonResponder()
     )
 );
+\WeCozaEvents\Controllers\MaterialTrackingController::register();
 
 add_filter('cron_schedules', 'wecoza_events_register_schedule');
 register_activation_hook(__FILE__, 'wecoza_events_schedule_notifications');

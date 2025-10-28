@@ -73,6 +73,12 @@ final class MaterialNotificationService
                    SELECT 1 
                    FROM "%s".class_material_tracking cmt
                    WHERE cmt.class_id = c.class_id
+                     AND cmt.delivery_status = \'delivered\'
+               )
+               AND NOT EXISTS (
+                   SELECT 1 
+                   FROM "%s".class_material_tracking cmt
+                   WHERE cmt.class_id = c.class_id
                      AND cmt.notification_type = :type
                      AND cmt.notification_sent_at IS NOT NULL
                )
@@ -81,6 +87,7 @@ final class MaterialNotificationService
             $this->schema,
             $this->schema,
             $daysUntilStart,
+            $this->schema,
             $this->schema
         );
 
