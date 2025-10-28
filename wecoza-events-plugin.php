@@ -84,8 +84,8 @@ if (defined('WP_CLI') && WP_CLI) {
 \WeCozaEvents\Controllers\MaterialTrackingController::register();
 
 add_filter('cron_schedules', 'wecoza_events_register_schedule');
-register_activation_hook(__FILE__, 'wecoza_events_schedule_notifications');
-register_deactivation_hook(__FILE__, 'wecoza_events_clear_notifications');
+register_activation_hook(__FILE__, 'wecoza_events_activate_plugin');
+register_deactivation_hook(__FILE__, 'wecoza_events_deactivate_plugin');
 add_action('wecoza_events_process_notifications', 'wecoza_events_run_notification_processor');
 
 function wecoza_events_register_schedule(array $schedules): array
@@ -105,6 +105,48 @@ function wecoza_events_register_schedule(array $schedules): array
     }
 
     return $schedules;
+}
+
+function wecoza_events_activate_plugin(): void
+{
+    wecoza_events_schedule_notifications();
+    wecoza_events_setup_capabilities();
+}
+
+function wecoza_events_deactivate_plugin(): void
+{
+    wecoza_events_clear_notifications();
+    wecoza_events_remove_capabilities();
+}
+
+function wecoza_events_setup_capabilities(): void
+{
+    $editor = get_role('editor');
+    if ($editor) {
+        $editor->add_cap('view_material_tracking');
+        $editor->add_cap('manage_material_tracking');
+    }
+
+    $administrator = get_role('administrator');
+    if ($administrator) {
+        $administrator->add_cap('view_material_tracking');
+        $administrator->add_cap('manage_material_tracking');
+    }
+}
+
+function wecoza_events_remove_capabilities(): void
+{
+    $editor = get_role('editor');
+    if ($editor) {
+        $editor->remove_cap('view_material_tracking');
+        $editor->remove_cap('manage_material_tracking');
+    }
+
+    $administrator = get_role('administrator');
+    if ($administrator) {
+        $administrator->remove_cap('view_material_tracking');
+        $administrator->remove_cap('manage_material_tracking');
+    }
 }
 
 function wecoza_events_schedule_notifications(): void
