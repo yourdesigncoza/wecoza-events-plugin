@@ -7,9 +7,11 @@ use PDO;
 use WeCozaEvents\Controllers\JsonResponder;
 use WeCozaEvents\Database\Connection;
 use WeCozaEvents\Models\ClassTaskRepository;
+use WeCozaEvents\Services\AISummaryService;
 use WeCozaEvents\Services\ClassTaskService;
 use WeCozaEvents\Services\TaskManager;
 use WeCozaEvents\Services\TaskTemplateRegistry;
+use WeCozaEvents\Support\OpenAIConfig;
 use WeCozaEvents\Views\Presenters\ClassTaskPresenter;
 use WeCozaEvents\Views\TemplateRenderer;
 
@@ -25,6 +27,8 @@ final class Container
     private static ?TemplateRenderer $templateRenderer = null;
     private static ?WordPressRequest $wordpressRequest = null;
     private static ?JsonResponder $jsonResponder = null;
+    private static ?OpenAIConfig $openAIConfig = null;
+    private static ?AISummaryService $aiSummaryService = null;
 
     public static function pdo(): PDO
     {
@@ -118,5 +122,23 @@ final class Container
         }
 
         return self::$jsonResponder;
+    }
+
+    public static function openAIConfig(): OpenAIConfig
+    {
+        if (self::$openAIConfig === null) {
+            self::$openAIConfig = new OpenAIConfig();
+        }
+
+        return self::$openAIConfig;
+    }
+
+    public static function aiSummaryService(): AISummaryService
+    {
+        if (self::$aiSummaryService === null) {
+            self::$aiSummaryService = new AISummaryService(self::openAIConfig());
+        }
+
+        return self::$aiSummaryService;
     }
 }

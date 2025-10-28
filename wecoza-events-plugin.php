@@ -27,13 +27,23 @@ require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/NotificationProcessor
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/TaskTemplateRegistry.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/TaskManager.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/ClassTaskService.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/AISummaryService/Traits/DataObfuscator.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Support/OpenAIConfig.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Support/FieldMapper.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Services/AISummaryService.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Support/Container.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Support/WordPressRequest.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Views/TemplateRenderer.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Views/Presenters/ClassTaskPresenter.php';
+require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Views/Presenters/NotificationEmailPresenter.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Shortcodes/EventTasksShortcode.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Controllers/JsonResponder.php';
 require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/Controllers/TaskController.php';
+
+if (defined('WP_CLI') && WP_CLI) {
+    require_once WECOZA_EVENTS_PLUGIN_DIR . 'includes/CLI/AISummaryStatusCommand.php';
+    \WeCozaEvents\CLI\AISummaryStatusCommand::register();
+}
 
 \WeCozaEvents\Shortcodes\EventTasksShortcode::register(
     new \WeCozaEvents\Shortcodes\EventTasksShortcode(

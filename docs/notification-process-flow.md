@@ -3,7 +3,7 @@
 This document summarises how a class INSERT or UPDATE propagates through the system and results in an email notification.
 
 ## 1. Database Layer
-- **Trigger:** `classes_log_insert_update` attaches to `public.classes` (`schema/wecoza_db_schema_bu_oct_22.sql`).
+- **Trigger:** `classes_log_insert_update` attaches to `public.classes` (`/opt/lampp/htdocs/wecoza/schema/wecoza_db_schema_bu_**`).
 - **Function:** `public.log_class_change()` runs after each INSERT or UPDATE.
   - Captures `NEW` and (for updates) `OLD` rows as JSON.
   - Computes a diff for updated columns.

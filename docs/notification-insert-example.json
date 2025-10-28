@@ -1,0 +1,220 @@
+Operation: INSERT
+
+Changed At: 2025-10-22 10:32:16.246526
+
+Class ID: 54
+
+Class Code: 5-AET-COMM_NUM-2025-10-02-07-51
+
+Class Subject: COMM_NUM
+
+Changes:
+
+{
+    "updated_at": {
+        "new": "2025-10-22T10:32:16",
+        "old": "2025-10-02T05:56:03"
+    },
+    "schedule_data": {
+        "new": {
+            "endDate": "2027-01-01",
+            "pattern": "weekly",
+            "version": "2.0",
+            "metadata": {
+                "lastUpdated": "2025-10-22T10:32:14+00:00",
+                "validatedAt": "2025-10-22T10:32:14+00:00"
+            },
+            "timeData": {
+                "mode": "per-day",
+                "perDayTimes": {
+                    "Friday": {
+                        "duration": "2.00",
+                        "end_time": "10:00",
+                        "start_time": "08:00"
+                    },
+                    "Wednesday": {
+                        "duration": "2.00",
+                        "end_time": "10:00",
+                        "start_time": "08:00"
+                    }
+                }
+            },
+            "startDate": "2025-10-23",
+            "dayOfMonth": null,
+            "selectedDays": [
+                "Wednesday",
+                "Friday"
+            ],
+            "exceptionDates": [
+                {
+                    "date": "2025-10-31",
+                    "reason": "Other"
+                },
+                {
+                    "date": "2025-11-28",
+                    "reason": "Other"
+                },
+                {
+                    "date": "2026-01-30",
+                    "reason": "Other"
+                }
+            ],
+            "holidayOverrides": {
+                "2025-12-26": true
+            }
+        },
+        "old": {
+            "endDate": "2026-12-18",
+            "pattern": "weekly",
+            "version": "2.0",
+            "metadata": {
+                "lastUpdated": "2025-10-02T05:56:02+00:00",
+                "validatedAt": "2025-10-02T05:56:02+00:00"
+            },
+            "timeData": {
+                "mode": "per-day",
+                "perDayTimes": {
+                    "Friday": {
+                        "duration": "2.00",
+                        "end_time": "10:00",
+                        "start_time": "08:00"
+                    },
+                    "Wednesday": {
+                        "duration": "2.00",
+                        "end_time": "10:00",
+                        "start_time": "08:00"
+                    }
+                }
+            },
+            "startDate": "2025-10-06",
+            "dayOfMonth": null,
+            "selectedDays": [
+                "Wednesday",
+                "Friday"
+            ],
+            "exceptionDates": [
+                {
+                    "date": "2025-10-31",
+                    "reason": "Other"
+                },
+                {
+                    "date": "2025-11-28",
+                    "reason": "Other"
+                },
+                {
+                    "date": "2026-01-30",
+                    "reason": "Other"
+                }
+            ],
+            "holidayOverrides": {
+                "2025-12-26": true
+            }
+        }
+    },
+    "original_start_date": {
+        "new": "2025-10-23",
+        "old": "2025-10-06"
+    }
+}
+
+New Row Snapshot:
+
+{
+    "seta": "",
+    "site_id": 20,
+    "class_id": 54,
+    "order_nr": null,
+    "client_id": 5,
+    "exam_type": "",
+    "class_code": "5-AET-COMM_NUM-2025-10-02-07-51",
+    "class_type": "AET",
+    "created_at": "2025-10-02T05:56:03",
+    "exam_class": false,
+    "updated_at": "2025-10-22T10:32:16",
+    "class_agent": null,
+    "learner_ids": [
+        {
+            "id": "1",
+            "name": "John Doe",
+            "level": "CL4",
+            "status": "CIC - Currently in Class"
+        },
+        {
+            "id": "4",
+            "name": "Sarah Wilson",
+            "level": "NL4",
+            "status": "CIC - Currently in Class"
+        },
+        {
+            "id": "5",
+            "name": "David Brown",
+            "level": "",
+            "status": "CIC - Currently in Class"
+        }
+    ],
+    "seta_funded": false,
+    "class_subject": "COMM_NUM",
+    "delivery_date": "2025-10-06",
+    "exam_learners": [],
+    "schedule_data": {
+        "endDate": "2027-01-01",
+        "pattern": "weekly",
+        "version": "2.0",
+        "metadata": {
+            "lastUpdated": "2025-10-22T10:32:14+00:00",
+            "validatedAt": "2025-10-22T10:32:14+00:00"
+        },
+        "timeData": {
+            "mode": "per-day",
+            "perDayTimes": {
+                "Friday": {
+                    "duration": "2.00",
+                    "end_time": "10:00",
+                    "start_time": "08:00"
+                },
+                "Wednesday": {
+                    "duration": "2.00",
+                    "end_time": "10:00",
+                    "start_time": "08:00"
+                }
+            }
+        },
+        "startDate": "2025-10-23",
+        "dayOfMonth": null,
+        "selectedDays": [
+            "Wednesday",
+            "Friday"
+        ],
+        "exceptionDates": [
+            {
+                "date": "2025-10-31",
+                "reason": "Other"
+            },
+            {
+                "date": "2025-11-28",
+                "reason": "Other"
+            },
+            {
+                "date": "2026-01-30",
+                "reason": "Other"
+            }
+        ],
+        "holidayOverrides": {
+            "2025-12-26": true
+        }
+    },
+    "class_duration": 240,
+    "backup_agent_ids": [],
+    "class_notes_data": [],
+    "class_address_line": "66 Kalahari Drive, Bloemfontein East, 2356",
+    "stop_restart_dates": [
+        {
+            "stop_date": "2025-12-12",
+            "restart_date": "2026-01-05"
+        }
+    ],
+    "initial_class_agent": 2,
+    "original_start_date": "2025-10-23",
+    "project_supervisor_id": 2,
+    "initial_agent_start_date": "2025-10-06"
+}

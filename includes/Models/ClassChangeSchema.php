@@ -30,8 +30,14 @@ final class ClassChangeSchema
     new_row JSONB NOT NULL,
     old_row JSONB,
     diff JSONB NOT NULL DEFAULT '{}'::jsonb,
-    tasks JSONB DEFAULT '[]'::jsonb
+    tasks JSONB DEFAULT '[]'::jsonb,
+    ai_summary JSONB DEFAULT NULL
 );",
+            $tableName
+        );
+
+        $ensureSummaryColumnSql = sprintf(
+            'ALTER TABLE %s ADD COLUMN IF NOT EXISTS ai_summary JSONB DEFAULT NULL;',
             $tableName
         );
 
@@ -94,7 +100,7 @@ AFTER INSERT OR UPDATE ON public.classes
 FOR EACH ROW EXECUTE FUNCTION {$functionName}();
 SQL;
 
-        foreach ([$createTableSql, $createIndexSql, $createFunctionSql, $dropTriggerSql, $createTriggerSql] as $statement) {
+        foreach ([$createTableSql, $ensureSummaryColumnSql, $createIndexSql, $createFunctionSql, $dropTriggerSql, $createTriggerSql] as $statement) {
             $pdo->exec($statement);
         }
     }
