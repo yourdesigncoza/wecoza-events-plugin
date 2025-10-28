@@ -1,3 +1,0 @@
-1. In `OpenAIConfig`, delete the constants and helpers for force enable, rollout percentage, and last successful test tracking; simplify `assessEligibility` so eligibility depends only on API key presence and the AI summaries enabled flag.
-2. Update `NotificationProcessor` to drop rollout-related skip reasons and continue relying on `wecoza_last_notified_log_id` for processing order while handling the reduced eligibility outcomes cleanly.
-3. Adjust `Admin/SettingsPage` to remove the now-obsolete AI settings (force toggle, rollout numeric field, last test timestamp), unregister the related options, and ensure the test-connection handler no longer references removed config APIs.

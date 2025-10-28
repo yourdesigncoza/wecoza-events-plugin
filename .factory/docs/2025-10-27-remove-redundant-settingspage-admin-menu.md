@@ -1,3 +1,0 @@
-1. Delete the `add_action('admin_menu', ...)` registration from `SettingsPage::register()` and remove any related uses of `registerMenu()`.
-2. Remove unused WordPress admin menu helper imports and delete the `registerMenu()` method definition from `includes/Admin/SettingsPage.php`.
-3. Verify that notification email handling remains dependent solely on `get_option()` values without introducing alternative UI or fallbacks.

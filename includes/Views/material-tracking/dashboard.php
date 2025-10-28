@@ -61,15 +61,60 @@ if (!defined('ABSPATH')) {
             <?php echo $this->render('material-tracking/statistics', ['statistics' => $statistics]); ?>
         </div>
 
-        <!-- Tracking Records List -->
-        <div class="card-body py-0 scrollbar material-tracking-list-body" style="max-height: 600px; overflow-y: auto;">
-            <?php if (empty($records)): ?>
-                <?php echo $this->render('material-tracking/empty-state', []); ?>
-            <?php else: ?>
-                <?php foreach ($records as $record): ?>
-                    <?php echo $this->render('material-tracking/list-item', ['record' => $record, 'can_manage' => $can_manage]); ?>
-                <?php endforeach; ?>
-            <?php endif; ?>
+        <!-- Tracking Records Table -->
+        <div class="card-body p-0">
+            <div class="table-responsive scrollbar" style="max-height: 600px; overflow-y: auto;">
+                <table id="material-tracking-table" class="table table-hover table-sm fs-9 mb-0 overflow-hidden">
+                    <thead class="border-bottom sticky-top bg-body">
+                        <tr>
+                            <th scope="col" class="border-0 ps-3" data-sortable="true" data-sort-key="class_code" data-sort-type="text" style="cursor: pointer;">
+                                Class Code/Subject
+                                <span class="sort-indicator ms-1 d-none"><i class="bi bi-chevron-up"></i></span>
+                            </th>
+                            <th scope="col" class="border-0" data-sortable="true" data-sort-key="client_name" data-sort-type="text" style="cursor: pointer;">
+                                Client/Site
+                                <span class="sort-indicator ms-1 d-none"><i class="bi bi-chevron-up"></i></span>
+                            </th>
+                            <th scope="col" class="border-0" data-sortable="true" data-sort-key="start_date" data-sort-type="date" style="cursor: pointer;">
+                                Class Start Date
+                                <span class="sort-indicator ms-1 d-none"><i class="bi bi-chevron-up"></i></span>
+                            </th>
+                            <th scope="col" class="border-0" data-sortable="true" data-sort-key="notification_type" data-sort-type="text" style="cursor: pointer;">
+                                Notification Type
+                                <span class="sort-indicator ms-1 d-none"><i class="bi bi-chevron-up"></i></span>
+                            </th>
+                            <th scope="col" class="border-0" data-sortable="true" data-sort-key="status" data-sort-type="text" style="cursor: pointer;">
+                                Status
+                                <span class="sort-indicator ms-1 d-none"><i class="bi bi-chevron-up"></i></span>
+                            </th>
+                            <th scope="col" class="border-0 text-center pe-3" data-sortable="false">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($records)): ?>
+                            <tr>
+                                <td colspan="6" class="text-center py-5">
+                                    <?php echo $this->render('material-tracking/empty-state', []); ?>
+                                </td>
+                            </tr>
+                        <?php else: ?>
+                            <?php 
+                            // Generate shared nonce for all mark-as-delivered checkboxes
+                            $tracking_nonce = wp_create_nonce('wecoza_material_tracking_action');
+                            ?>
+                            <?php foreach ($records as $record): ?>
+                                <?php echo $this->render('material-tracking/list-item', [
+                                    'record' => $record, 
+                                    'can_manage' => $can_manage,
+                                    'tracking_nonce' => $tracking_nonce
+                                ]); ?>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- Footer -->
@@ -82,17 +127,9 @@ if (!defined('ABSPATH')) {
         </div>
     </div>
 
-    <!-- Toast Container -->
-    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
-        <div id="material-tracking-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header">
-                <strong class="me-auto toast-title">Notification</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-            <div class="toast-body toast-message">
-                Message
-            </div>
-        </div>
+    <!-- Alert Container -->
+    <div id="material-tracking-alert-container" class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 9999; min-width: 400px; max-width: 600px;">
+        <!-- Alerts will be dynamically inserted here -->
     </div>
 </div>
 
@@ -100,24 +137,74 @@ if (!defined('ABSPATH')) {
 .wecoza-material-tracking-dashboard .search-input {
     border-radius: 0.375rem;
 }
-.material-tracking-list-body {
-    min-height: 300px;
+
+/* Table styling */
+#material-tracking-table {
+    min-width: 100%;
 }
-.material-tracking-list-item {
-    transition: background-color 0.2s;
+
+#material-tracking-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    white-space: nowrap;
+    font-weight: 600;
+    font-size: 0.8125rem;
 }
-.material-tracking-list-item:first-child {
-    border-top: none !important;
+
+#material-tracking-table thead th[data-sortable="true"] {
+    user-select: none;
 }
-.material-tracking-list-item:hover {
+
+#material-tracking-table thead th[data-sortable="true"]:hover {
     background-color: rgba(0, 0, 0, 0.02);
 }
-.mark-delivered-btn {
-    opacity: 0.9;
-    transition: opacity 0.2s;
+
+#material-tracking-table tbody tr {
+    transition: background-color 0.15s ease;
 }
-.mark-delivered-btn:hover {
-    opacity: 1;
+
+#material-tracking-table tbody td {
+    vertical-align: middle;
+    font-size: 0.875rem;
+}
+
+#material-tracking-table .sort-indicator {
+    display: inline-block;
+    transition: opacity 0.2s;
+    font-size: 0.75rem;
+}
+
+#material-tracking-table .sort-indicator i {
+    transition: transform 0.2s;
+}
+
+/* Checkbox styling */
+.mark-delivered-checkbox {
+    cursor: pointer;
+    width: 1.125rem;
+    height: 1.125rem;
+}
+
+.mark-delivered-checkbox:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.mark-delivered-checkbox:not(:disabled):hover {
+    transform: scale(1.1);
+    transition: transform 0.15s;
+}
+
+/* Compact table spacing */
+.table-sm td, .table-sm th {
+    padding: 0.5rem;
+}
+
+/* Badge adjustments for table cells */
+.badge {
+    display: inline-block;
+    white-space: nowrap;
 }
 </style>
 
@@ -125,6 +212,7 @@ if (!defined('ABSPATH')) {
 jQuery(document).ready(function($) {
     const ajaxUrl = '<?php echo esc_js(admin_url('admin-ajax.php')); ?>';
     let lastUpdateTime = Date.now();
+    let currentSort = { key: null, direction: 'asc' };
     
     // Update last updated time
     function updateLastUpdatedTime() {
@@ -142,35 +230,135 @@ jQuery(document).ready(function($) {
     
     setInterval(updateLastUpdatedTime, 10000); // Update every 10 seconds
     
-    // Show toast notification
-    function showToast(type, message) {
-        const toast = $('#material-tracking-toast');
-        const toastEl = new bootstrap.Toast(toast[0]);
+    // Show alert notification
+    function showAlert(type, message) {
+        let alertClass, iconClass, iconColor;
         
-        toast.removeClass('bg-success bg-danger bg-info');
         if (type === 'success') {
-            toast.addClass('bg-success text-white');
-            $('.toast-title').text('Success');
+            alertClass = 'alert-subtle-success';
+            iconClass = 'fa-check-circle';
+            iconColor = 'text-success';
         } else if (type === 'error') {
-            toast.addClass('bg-danger text-white');
-            $('.toast-title').text('Error');
+            alertClass = 'alert-subtle-danger';
+            iconClass = 'fa-times-circle';
+            iconColor = 'text-danger';
         } else {
-            toast.addClass('bg-info text-white');
-            $('.toast-title').text('Info');
+            alertClass = 'alert-subtle-info';
+            iconClass = 'fa-info-circle';
+            iconColor = 'text-info';
         }
         
-        $('.toast-message').text(message);
-        toastEl.show();
+        const alertId = 'alert-' + Date.now();
+        const alertHtml = `
+            <div id="${alertId}" class="alert ${alertClass} d-flex align-items-center mb-2" role="alert">
+                <span class="fas ${iconClass} ${iconColor} fs-5 me-3"></span>
+                <p class="mb-0 flex-1">${message}</p>
+                <button class="btn-close" type="button" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+        
+        $('#material-tracking-alert-container').append(alertHtml);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(function() {
+            $('#' + alertId).fadeOut(300, function() {
+                $(this).remove();
+            });
+        }, 5000);
     }
     
-    // Mark as delivered
-    $(document).on('click', '.mark-delivered-btn', function() {
-        const button = $(this);
-        const classId = button.data('class-id');
-        const nonce = button.data('nonce');
-        const originalHtml = button.html();
+    // Column sorting
+    function sortTable(sortKey, sortType) {
+        const tbody = $('#material-tracking-table tbody');
+        const rows = tbody.find('tr').get();
         
-        button.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Processing...');
+        // Determine sort direction
+        if (currentSort.key === sortKey) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.key = sortKey;
+            currentSort.direction = 'asc';
+        }
+        
+        // Sort rows
+        rows.sort(function(a, b) {
+            let aVal, bVal;
+            
+            if (sortType === 'text') {
+                if (sortKey === 'class_code') {
+                    aVal = $(a).data('class-code') || '';
+                } else if (sortKey === 'client_name') {
+                    aVal = $(a).data('client-name') || '';
+                } else if (sortKey === 'notification_type') {
+                    aVal = $(a).data('notification-type') || '';
+                } else if (sortKey === 'status') {
+                    aVal = $(a).data('status') || '';
+                }
+                
+                if (sortKey === 'class_code') {
+                    bVal = $(b).data('class-code') || '';
+                } else if (sortKey === 'client_name') {
+                    bVal = $(b).data('client-name') || '';
+                } else if (sortKey === 'notification_type') {
+                    bVal = $(b).data('notification-type') || '';
+                } else if (sortKey === 'status') {
+                    bVal = $(b).data('status') || '';
+                }
+                
+                aVal = aVal.toString().toLowerCase();
+                bVal = bVal.toString().toLowerCase();
+            } else if (sortType === 'date') {
+                aVal = new Date($(a).data('start-date') || 0).getTime();
+                bVal = new Date($(b).data('start-date') || 0).getTime();
+            }
+            
+            if (currentSort.direction === 'asc') {
+                return aVal > bVal ? 1 : -1;
+            } else {
+                return aVal < bVal ? 1 : -1;
+            }
+        });
+        
+        // Reorder DOM
+        $.each(rows, function(index, row) {
+            tbody.append(row);
+        });
+        
+        // Update sort indicators
+        $('th[data-sortable="true"]').each(function() {
+            const th = $(this);
+            const indicator = th.find('.sort-indicator');
+            
+            if (th.data('sort-key') === sortKey) {
+                indicator.removeClass('d-none');
+                const icon = indicator.find('i');
+                if (currentSort.direction === 'asc') {
+                    icon.removeClass('bi-chevron-down').addClass('bi-chevron-up');
+                } else {
+                    icon.removeClass('bi-chevron-up').addClass('bi-chevron-down');
+                }
+            } else {
+                indicator.addClass('d-none');
+            }
+        });
+    }
+    
+    // Sort column click handler
+    $('th[data-sortable="true"]').on('click', function() {
+        const sortKey = $(this).data('sort-key');
+        const sortType = $(this).data('sort-type');
+        sortTable(sortKey, sortType);
+    });
+    
+    // Mark as delivered checkbox handler
+    $(document).on('change', '.mark-delivered-checkbox:not(:disabled)', function() {
+        const checkbox = $(this);
+        const classId = checkbox.data('class-id');
+        const nonce = checkbox.data('nonce');
+        const row = checkbox.closest('tr');
+        
+        // Disable checkbox immediately
+        checkbox.prop('disabled', true);
         
         $.ajax({
             url: ajaxUrl,
@@ -182,12 +370,12 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    showToast('success', response.data.message);
+                    showAlert('success', response.data.message);
                     
-                    // Update UI
-                    const listItem = button.closest('.material-tracking-list-item');
-                    listItem.find('.delivery-status-badge').html('<span class="badge badge-phoenix badge-phoenix-success fs-10">✅ Delivered</span>');
-                    button.replaceWith('<span class="text-success fw-bold fs-9">✓ Confirmed</span>');
+                    // Update UI - keep checkbox checked and disabled
+                    checkbox.prop('checked', true).prop('disabled', true);
+                    row.find('.delivery-status-badge').html('<span class="badge badge-phoenix badge-phoenix-success fs-10">✅ Delivered</span>');
+                    row.data('status', 'delivered');
                     
                     // Update statistics
                     const notifiedCount = parseInt($('#stat-notified').text()) - 1;
@@ -198,13 +386,13 @@ jQuery(document).ready(function($) {
                     lastUpdateTime = Date.now();
                     updateLastUpdatedTime();
                 } else {
-                    showToast('error', response.data.message || 'Failed to mark as delivered');
-                    button.prop('disabled', false).html(originalHtml);
+                    showAlert('error', response.data.message || 'Failed to mark as delivered');
+                    checkbox.prop('checked', false).prop('disabled', false);
                 }
             },
             error: function() {
-                showToast('error', 'An error occurred. Please try again.');
-                button.prop('disabled', false).html(originalHtml);
+                showAlert('error', 'An error occurred. Please try again.');
+                checkbox.prop('checked', false).prop('disabled', false);
             }
         });
     });
@@ -216,11 +404,11 @@ jQuery(document).ready(function($) {
         const typeFilter = $('#notification-type-filter').val();
         let visibleCount = 0;
         
-        $('.material-tracking-list-item').each(function() {
-            const item = $(this);
-            const text = item.text().toLowerCase();
-            const status = item.data('status');
-            const type = item.data('notification-type');
+        $('#material-tracking-table tbody tr').each(function() {
+            const row = $(this);
+            const text = row.text().toLowerCase();
+            const status = row.data('status');
+            const type = row.data('notification-type');
             
             let visible = true;
             
@@ -236,18 +424,11 @@ jQuery(document).ready(function($) {
                 visible = false;
             }
             
-            item.toggle(visible);
+            row.toggle(visible);
             if (visible) visibleCount++;
         });
         
         $('#visible-count').text(visibleCount);
-        
-        // Show/hide empty state
-        if (visibleCount === 0) {
-            $('.material-tracking-empty-state').show();
-        } else {
-            $('.material-tracking-empty-state').hide();
-        }
     }
     
     $('#material-tracking-search').on('input', filterRecords);

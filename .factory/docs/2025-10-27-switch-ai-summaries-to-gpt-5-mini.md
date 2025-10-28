@@ -1,4 +1,0 @@
-1. Update `AISummaryService` to set `gpt-5-mini` as the sole model constant, remove the fallback constant, and simplify `callOpenAI` usage accordingly while preserving existing metrics and error handling.
-2. Ensure the service still fetches the API key through `OpenAIConfig::getApiKey()` (which ultimately calls `get_option('wecoza_openai_api_key')`) and surface a clear error when missing.
-3. Adjust any model-specific price tables, such as `AISummaryStatusCommand::DEFAULT_MODEL_RATES`, to reflect only `gpt-5-mini` with its current pricing so reporting remains accurate.
-4. After implementation, run `php -l` on the modified PHP files to confirm there are no syntax issues.
